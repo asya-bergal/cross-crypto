@@ -5,24 +5,14 @@
 Require Import FCF.
 Require Import Bvector.
 Require Import Asymptotic.
-
-(* Inductive typecode := *)
-(* | Base (T : Type) *)
-(* | Arrow (dom : typecode) (ran : typecode) *)
-(* | Bits (eta : nat). *)
-
-(* Fixpoint interp_typecode (tc:typecode) : Type := *)
-(*   match tc with *)
-(*     | Base x => x *)
-(*     | Arrow x y => interp_typecode x -> interp_typecode y *)
-(*     | Bits eta => Bvector eta *)
-(*   end. *)
   
-Inductive unary_func : Type -> Type -> Type :=
-| Increment : unary_func nat nat.
+Inductive typecode :=
+| Base (T : Type)
+| Bits.
+  
+(* | Arrow x y => interp_typecode x -> interp_typecode y *)
+(* | Arrow (dom : typecode) (ran : typecode) *)
 
-Inductive binary_func : Type -> Type -> Type -> Type :=
-| Add : binary_func nat nat nat.
 (* f in App will be initialized with, per se, f = the computational definition of encryption for convenience. This will denote to the symbolic model that this is encryption, and f will be ranged over *)
 
 (* Inductive term : typecode -> Type := *)
@@ -31,23 +21,31 @@ Inductive binary_func : Type -> Type -> Type -> Type :=
 (* | App2 : forall {T1 T2 T3} (f: binary_func T1 T2 T3) (x:term(Base T1)) (y:term(Base T2)), term(Base T3) *)
 (* | Random : forall tc (random_index : nat), term tc. *)
 
-Inductive term : Type -> Type :=
-| Const : forall {T} (x: T), term T
-| App1 : forall {T1 T2} (f: unary_func T1 T2) (x:term T1), term T2
-| App2 : forall {T1 T2 T3} (f: binary_func T1 T2 T3) (x:term T1) (y:term T2), term T3
-| Random : forall (eta: nat) (random_index : nat), term (Bvector eta).
+Inductive unary_func : typecode -> Type -> Type :=
+| Increment : unary_func (Base nat) nat.
 
-Inductive unary : Type -> Type :=
-| IsTrue : unary bool.
+Inductive binary_func : Type -> Type -> Type -> Type :=
+| Add : binary_func nat nat nat.
 
-Inductive binary : Type -> Type -> Type :=
-| Equal : forall (T1: Type) (T2: Type), binary T1 T2.
+
+Inductive term : typecode  -> Type :=
+| Const : forall {T} (x: T), term (Base T)
+(* | App1 : forall {tc1 T2} (f: unary_func tc1 T2) (x:term tc1), term (Base T2) *)
+(* | App2 : forall {T1 T2 T3} (f: binary_func T1 T2 T3) (x:term T1) (y:term T2), term (Base T2) *)
+| Random : forall (random_index : nat), term Bits.
+
+Inductive unary : typecode -> Type :=
+| IsTrue : unary (Base bool)
+| AllZeros : unary Bits.
+
+Inductive binary : typecode -> typecode -> Type :=
+| Equal : forall (tc1: typecode) (tc2: typecode), binary tc1 tc2.
 
 (* TODO: list of not just all the same type for deducible *)
 Inductive atomic :=
-| Deducible {T1 : Type} {T2 : Type} (context : list (term T1)) (target: term T2)
-| AtomicUnary {T : Type} (t : term T) (P: unary T)
-| AtomicBinary {T1 : Type} {T2 : Type} (t1 : term T1) (t2: term T2) (P: binary T1 T2).
+| Deducible {tc1 : typecode} {tc2 : typecode} (context : list (term tc1)) (target: term tc2)
+| AtomicUnary {tc : typecode} (t : term tc) (P: unary tc)
+| AtomicBinary {tc1 : typecode} {tc2 : typecode} (t1 : term tc1) (t2: term tc2) (P: binary tc1 tc2).
 
 Inductive formula :=
 | Atomic (a : atomic)
@@ -74,27 +72,46 @@ Section Formulas.
     end.
 End Formulas.
 
-(* TODO: This definition is wrong, maybe we can fix it when we decide to go back to props *)
-Definition cinterp_unary {T: Type} (u : unary T) : (T -> bool) :=
+(* Problem 2: Apps *)
+                                                                        
+(* AND ID(n) ID(n) *)
+
+Definition cinterp_unary_base {T: Type} (u : unary (Base T)) : (T -> Prop) :=
   match u with
-    | IsTrue => fun t => true
+    | IsTrue => eq true
+  end.
+
+Definition eval_base {T : Type} (t: term (Base T)) : T :=
+  match t with
+    | Const _ c => c
+  end.
+           
+Definition cinterp_unary_bits (eta : nat) (u : unary Bits) : Bvector eta -> bool :=
+  match u with
+    | AllZeros => fun b => b ?= Bvect_false eta
   end.
                    
-Print cinterp_unary.
-(* TODO: Write this better *)
-(* TODO: P needs to be a function defined on random values of any length if it is to work correctly *)
-(* TODO: P also has to be decideable, how awkward. *)
-Definition random_unary_comp (eta: nat) (P: Bvector eta -> bool): Comp bool :=
+(* Given an eta and a function P on bitvectors of length eta, return True only if P r is false. *)
+Definition unary_comp {eta: nat} (Comp (P: Bvector eta -> bool): Comp bool :=
   r <-$ Rnd eta;
-  ret P r.
+  ret negb (P r).
 
-Definition cinterp_atomic_unary {T: Type} (t: term T) : unary T -> Prop :=
-  match t with
-    | Const _ c => fun P => if (cinterp_unary P) c then True else False
-    | App1 _ _ f x => fun _ => True
-    | App2 _ _ _ f x y => fun _ => True
-    | Random eta i => fun P => negligible (fun n => Pr[random_unary_comp eta (cinterp_unary P)])
+Definition cinterp_atomic_unary {tc: typecode} : term tc -> unary tc -> Prop :=
+  match tc with
+    | Base _ => fun t => fun P => cinterp_unary_base P (eval_base t)
+    | Bits => fun _ => fun P => negligible (fun n => Pr[unary_comp n (cinterp_unary_bits n P)])
   end.
+
+(* Either function evaluates a constant to produce a constant (easy game, easy life) *)
+(* Or function evaluates Bits. Then function must be decideable,  *)
+
+  
+  (* match t with *)
+  (*   | Const _ c => fun P => (cinterp_unary P) c  *)
+  (*   (* | App1 _ _ f x => fun _ => True *) *)
+  (*   (* | App2 _ _ _ f x y => fun _ => True *) *)
+  (*   | Random i => fun P => negligible (fun n => Pr[random_unary_comp n (cinterp_unary P)]) *)
+  (* end. *)
 
 Definition cinterp_atomic (a : atomic) : Prop :=
   match a with
