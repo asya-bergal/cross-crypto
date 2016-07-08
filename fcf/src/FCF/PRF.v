@@ -232,7 +232,7 @@ Section PRF_concrete.
     | Pr[PRF_G_A] - Pr[PRF_G_B] |.  
     
     Set Printing All.
-    Print PRF_Advantage
+    Print PRF_Advantage.
     Print evalDist.
     Print PRF_G_A.
   End PRF_Full_concrete.
