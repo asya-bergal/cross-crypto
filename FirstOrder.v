@@ -47,12 +47,13 @@ Inductive formula : Type :=
 | FTrue : formula
 | FFalse : formula.
 
-Record model (D : Type) := Model
-                             {interp_func : forall n, func n -> tuple D n -> D;
-                              interp_name : name -> D;
-                              interp_handle : handle -> D;
-                              interp_predicate : forall n, predicate n ->
-                                                           tuple D n -> Prop}.
+Record model := Model
+                  {domain : Type;
+                   interp_func : forall n, func n -> tuple domain n -> domain;
+                   interp_name : name -> domain;
+                   interp_handle : handle -> domain;
+                   interp_predicate : forall n, predicate n ->
+                                                tuple domain n -> Prop}.
 
 Definition term_terms_rect
          (P : term -> Type)
@@ -81,12 +82,12 @@ Definition term_terms_rect
   end.
 
 Definition free_term (v : var) : forall t : term, Prop :=
-  term_terms_rect (fun _ => False)
-                  (fun _ => False)
-                  (fun v' => v = v')
-                  (fun _ _ _ (IHts : Prop) => IHts)
-                  False
-                  (fun _ _ _ IHt IHts => IHt \/ IHts).
+  term_terms_rect (fun _ => False) (* name *)
+                  (fun _ => False) (* handle *)
+                  (fun v' => v = v') (* var *)
+                  (fun _ _ _ (IHts : Prop) => IHts) (* app *)
+                  False (* nil *)
+                  (fun _ _ _ IHt IHts => IHt \/ IHts). (* cons *)
 
 (* (* Equivalent definition in terms of nested fixpoints. *)
 Fixpoint free_term (v : var) (t : term) {struct t} : Prop :=
@@ -119,8 +120,9 @@ Lemma free_terms_app v n (ts : tuple term n) : forall f,
   assumption.
 Qed.
 
-Definition interp_term (D : Type) (m : model D) (t : term) :
-  (forall v : var, free_term v t -> D) -> D.
+Definition interp_term (m : model) (t : term) :
+  (forall v : var, free_term v t -> m.(domain)) -> m.(domain).
+  set (D := m.(domain)).
   apply term_terms_rect with
   (P := (fun t => (forall v : var, free_term v t -> D) -> D))
     (Q := fun n ts => (forall v : var, free_terms v ts -> D) -> tuple D n);
@@ -137,14 +139,14 @@ Definition interp_term (D : Type) (m : model D) (t : term) :
   simpl; reflexivity.
   (* app *)
   intros n f ts IHts ctx.
-  apply (m.(interp_func) f).
+  apply (interp_func f).
   apply IHts.
   intros v H.
   apply (ctx v).
   apply free_terms_app.
   assumption.
   (* nil *)
-  intro; exact (tuple_nil D).
+  intro; exact (tuple_nil _).
   (* cons *)
   intros n t ts IHt IHts ctx.
   apply tuple_cons.
@@ -169,12 +171,13 @@ Fixpoint free_formula (v : var) (f : formula) : Prop :=
     | _ => False
   end.
 
-Definition interp_terms (D : Type) (m : model D) n (ts : tuple term n)
-           (ctx : forall v : var, free_terms v ts -> D) : tuple D n.
+Definition interp_terms (m : model) n (ts : tuple term n)
+           (ctx : forall v : var, free_terms v ts -> m.(domain))
+: tuple m.(domain) n.
   induction ts as [| n t ts IHts].
-  exact (tuple_nil D).
+  exact (tuple_nil _).
   apply tuple_cons.
-  refine (interp_term m (t:=t) _).
+  refine (interp_term (t:=t) _).
   intros v H.
   apply (ctx v).
   left; assumption.
@@ -184,26 +187,26 @@ Definition interp_terms (D : Type) (m : model D) n (ts : tuple term n)
   right; assumption.
 Defined.
 
-Fixpoint interp_formula (D : Type) (m : model D) (f : formula) {struct f}
-         : (forall v : var, free_formula v f -> D) -> Prop :=
-  match f as f' return ((forall v : var, free_formula v f' -> D) -> _) with
-    | Predicate n p ts => fun ctx => m.(interp_predicate)
-                                         p (interp_terms m (ts:=ts) ctx)
+Fixpoint interp_formula (m : model) (f : formula) {struct f}
+         : (forall v : var, free_formula v f -> m.(domain)) -> Prop :=
+  match f as f' return ((forall v : var, free_formula v f' -> _) -> _) with
+    | Predicate n p ts => fun ctx =>
+                            interp_predicate p (interp_terms (ts:=ts) ctx)
     | And f1 f2 => fun ctx =>
-                     and (interp_formula m (f:=f1)
+                     and (interp_formula (f:=f1)
                                          (fun v H => ctx v (or_introl H)))
-                         (interp_formula m (f:=f2)
+                         (interp_formula (f:=f2)
                                          (fun v H => ctx v (or_intror H)))
     | Or f1 f2 => fun ctx =>
-                     or (interp_formula m (f:=f1)
-                                         (fun v H => ctx v (or_introl H)))
-                         (interp_formula m (f:=f2)
-                                         (fun v H => ctx v (or_intror H)))
-    | Not f => fun ctx => ~(interp_formula m (f:=f) ctx)
+                    or (interp_formula (f:=f1)
+                                       (fun v H => ctx v (or_introl H)))
+                       (interp_formula (f:=f2)
+                                       (fun v H => ctx v (or_intror H)))
+    | Not f => fun ctx => ~(interp_formula (f:=f) ctx)
     | Forall v f =>
       fun ctx =>
-        forall d : D,
-          interp_formula m (f:=f)
+        forall d : m.(domain),
+          interp_formula (f:=f)
                          (fun v' H =>
                             match var_dec_eq v' v with
                               | left veqv' => d
@@ -211,8 +214,8 @@ Fixpoint interp_formula (D : Type) (m : model D) (f : formula) {struct f}
                             end)
     | Exists v f =>
       fun ctx =>
-        exists d : D,
-          interp_formula m (f:=f)
+        exists d : m.(domain),
+          interp_formula (f:=f)
                          (fun v' H =>
                             match var_dec_eq v' v with
                               | left veqv' => d
@@ -222,31 +225,11 @@ Fixpoint interp_formula (D : Type) (m : model D) (f : formula) {struct f}
     | FFalse => fun _ => False
   end.
 
-(*
-Definition interp_formula (D : Type) (m : model D) (f : formula)
-         (ctx : forall v : var, free_formula v f -> D) : Prop.
-  induction f as [n p ts | f1 IHf1 f2 IHf2 | f1 IHf1 f2 IHf2 | f IHf | v' f | v' f].
-  apply (m.(interp_predicate) p).
-  refine (interp_terms m (ts:=ts) _).
-  intro v.
-  exact (ctx v).
-
-  refine (IHf1 _ /\ IHf2 _); intros v H; apply (ctx v);
-  [left | right]; assumption.
-
-  refine (IHf1 _ \/ IHf2 _); intros v H; apply (ctx v);
-  [left | right]; assumption.
-
-  refine (~IHf _); exact ctx.
-
-  refine (forall d : D, IHf _). (* error I don't understand *)
-*)
-
 Definition closed f := forall v, ~free_formula v f.
 
-Definition interp_closed_formula (D : Type) (m : model D) (f : formula)
+Definition interp_closed_formula (m : model) (f : formula)
            (H : closed f) : Prop.
-  refine (interp_formula m (f:=f) _).
+  refine (interp_formula (m:=m) (f:=f) _).
   intros v H'.
   destruct (H v H').
 Defined.
