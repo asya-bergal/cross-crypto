@@ -1,8 +1,6 @@
 Set Implicit Arguments.
 Unset Strict Implicit.
 
-Axiom TODO : forall {t : Type}, t.
-
 Inductive tuple (T : Type) : nat -> Type :=
 | tuple_nil : tuple T 0
 | tuple_cons : forall n, T -> tuple T n -> tuple T (S n).
@@ -18,17 +16,6 @@ Fixpoint tuple_fold n A B (f : A -> B -> B) (t : tuple A n) (b : B) : B :=
     | tuple_nil => b
     | tuple_cons _ x xs => f x (tuple_fold f xs b)
   end.
-
-(*
-Eval cbv [tuple_map nat_rect] in tuple_map.
-
-Fixpoint tuple_map n A B (f : A -> B) (t : tuple n A) {struct n} : tuple n B
- :=
-  match n with
-    | 0 => tt
-    | S n => let (hd, tl) := t in (f hd, tuple_map n A B f tl)
-  end.
-*)
 
 Axiom identifier : Set.
 Axiom identifier_dec_eq : forall i i' : identifier, {i = i'} + {i <> i'}.
@@ -64,51 +51,109 @@ Record model (D : Type) := Model
                               interp_predicate : forall n, predicate n ->
                                                            tuple D n -> Prop}.
 
-(*
-Inductive model (D : Type) :=
-| Model : (forall n, func n -> tuple n D -> D) ->
-          (name -> D) ->
-          (handle -> D) ->
-          (forall n, predicate n -> tuple n D -> Prop) ->
-          model D.
-*)
+Definition term_terms_rect
+         (P : term -> Type)
+         (Q : forall n, tuple term n -> Type)
+         (c_name : forall n : name, P (Name n))
+         (c_handle : forall h : handle, P (Handle h))
+         (c_var : forall v : var, P (Var v))
+         (c_app : forall (n : nat) (f : func n) (ts : tuple term n),
+                    Q n ts -> P (App f ts))
+         (c_nil : Q 0 (tuple_nil term))
+         (c_cons : forall (n : nat) (t : term) (ts : tuple term n),
+                     P t -> Q n ts -> Q (S n) (tuple_cons t ts)) :
+  forall t : term, P t :=
+  fix F (t : term) : P t :=
+  match t with
+    | Name n => c_name n
+    | Handle h => c_handle h
+    | Var v => c_var v
+    | App n f ts =>
+      c_app n f ts
+            ((fix G n (ts : tuple term n) : Q n ts :=
+                match ts with
+                  | tuple_nil => c_nil
+                  | tuple_cons n t ts => c_cons n t ts (F t) (G n ts)
+                end) n ts)
+  end.
 
+Definition free_term (v : var) : forall t : term, Prop :=
+  term_terms_rect (fun _ => False)
+                  (fun _ => False)
+                  (fun v' => v = v')
+                  (fun _ _ _ (IHts : Prop) => IHts)
+                  False
+                  (fun _ _ _ IHt IHts => IHt \/ IHts).
+
+(* (* Equivalent definition in terms of nested fixpoints. *)
 Fixpoint free_term (v : var) (t : term) {struct t} : Prop :=
   match t with
     | Var v' => v = v'
-    | App n f ts => free_terms v ts
+    | App n f ts =>
+      (fix free_terms (v : var) n (ts : tuple term n) {struct ts} :=
+         match ts with
+           | tuple_nil => False
+           | tuple_cons n t ts => free_term v t \/ free_terms v n ts
+         end) v ts
     | _ => False
-  end
-
-with free_terms (v : var) n (ts : tuple term n) {struct ts} :=
-       match ts with
-         | tuple_nil => False
-         | tuple_cons n t ts => free_term v t \/ free_terms v ts
-       end.
-  tuple_fold (fun t p => free_term v t \/ p) ts False.
-
-(*
-Fixpoint free_terms (v : var) n (ts : tuple term n) {struct ts} :=
-       match ts with
-         | tuple_nil => False
-         | tuple_cons n t ts =>
-           match t with
-             | Var v' => v = v'
-             | App n f ts => free_terms v ts
-             | _ => False
-           end \/ free_terms v ts
-       end.
+  end.
 *)
 
-Definition interp_term (D : Type) (m : model D) (t : term)
-           (ctx : forall v : var, free_term v t -> D) : D.
-  induction t as [n | h | v].
+Definition free_terms v n (ts : tuple term n) :=
+  tuple_fold (fun t p => free_term v t \/ p) ts False.
+
+Lemma free_terms_app v n (ts : tuple term n) : forall f,
+  free_terms v ts -> free_term v (App f ts).
+  intros f H.
+  simpl.
+  clear f.
+  induction ts.
+  destruct H.
+  induction H.
+  left; assumption.
+  right.
+  apply IHts.
+  assumption.
+Qed.
+
+Definition interp_term (D : Type) (m : model D) (t : term) :
+  (forall v : var, free_term v t -> D) -> D.
+  apply term_terms_rect with
+  (P := (fun t => (forall v : var, free_term v t -> D) -> D))
+    (Q := fun n ts => (forall v : var, free_terms v ts -> D) -> tuple D n);
+  clear t.
+  (* name *)
+  intros n ctx.
   exact (m.(interp_name) n).
+  (* handle *)
+  intros h ctx.
   exact (m.(interp_handle) h).
+  (* var *)
+  intros v ctx.
   apply (ctx v).
   simpl; reflexivity.
+  (* app *)
+  intros n f ts IHts ctx.
+  apply (m.(interp_func) f).
+  apply IHts.
+  intros v H.
+  apply (ctx v).
+  apply free_terms_app.
+  assumption.
+  (* nil *)
+  intro; exact (tuple_nil D).
+  (* cons *)
+  intros n t ts IHt IHts ctx.
+  apply tuple_cons.
+  apply IHt.
+  intros v H.
+  apply (ctx v).
+  left; assumption.
+  apply IHts.
+  intros v H.
+  apply (ctx v).
+  right; assumption.
 Defined.
-
 
 Fixpoint free_formula (v : var) (f : formula) : Prop :=
   match f with
@@ -122,25 +167,17 @@ Fixpoint free_formula (v : var) (f : formula) : Prop :=
 
 Definition interp_terms (D : Type) (m : model D) n (ts : tuple term n)
            (ctx : forall v : var, free_terms v ts -> D) : tuple D n.
-  induction ts as [| n hd tl IHts].
+  induction ts as [| n t ts IHts].
   exact (tuple_nil D).
-  simpl in ctx.
-  refine (tuple_cons _ _).
-  clear IHts.
-  induction hd as [nm | h | v].
-  refine (interp_term m (t:=Name nm) _).
-  intros v H; destruct H.
-  refine (interp_term m (t:=Handle h) _).
-  intros v H; destruct H.
+  apply tuple_cons.
+  refine (interp_term m (t:=t) _).
+  intros v H.
   apply (ctx v).
-  left.
-  simpl; reflexivity.
-
+  left; assumption.
   apply IHts.
   intros v H.
   apply (ctx v).
-  right.
-  assumption.
+  right; assumption.
 Defined.
 
 Fixpoint interp_formula (D : Type) (m : model D) (f : formula) {struct f}
