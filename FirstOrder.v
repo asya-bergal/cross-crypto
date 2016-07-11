@@ -21,6 +21,7 @@ Axiom identifier : Set.
 Axiom identifier_dec_eq : forall i i' : identifier, {i = i'} + {i <> i'}.
 
 Definition func (n : nat) := identifier.
+Definition predicate (n : nat) := identifier.
 Definition name := identifier.
 Definition handle := identifier.
 Definition var := identifier.
@@ -32,9 +33,9 @@ Inductive term : Type :=
 | Var : var -> term
 | App : forall n : nat, (func n) -> tuple term n -> term.
 
-Inductive predicate : forall n : nat, Type :=
-| Equal : predicate 2
-| Deducible : forall n, predicate (S n).
+(* Inductive predicate : forall n : nat, Type := *)
+(* | Equal : predicate 2 *)
+(* | Deducible : forall n, predicate (S n). *)
 
 Inductive formula : Type :=
 | Predicate : forall n, predicate n -> tuple term n -> formula
