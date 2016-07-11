@@ -42,7 +42,9 @@ Inductive formula : Type :=
 | Or : formula -> formula -> formula
 | Not : formula -> formula
 | Forall : var -> formula -> formula
-| Exists : var -> formula -> formula.
+| Exists : var -> formula -> formula
+| FTrue : formula
+| FFalse : formula.
 
 Record model (D : Type) := Model
                              {interp_func : forall n, func n -> tuple D n -> D;
@@ -163,6 +165,7 @@ Fixpoint free_formula (v : var) (f : formula) : Prop :=
     | Not f => free_formula v f
     | Forall v' f => v <> v' /\ free_formula v f
     | Exists v' f => v <> v' /\ free_formula v f
+    | _ => False
   end.
 
 Definition interp_terms (D : Type) (m : model D) n (ts : tuple term n)
@@ -214,6 +217,8 @@ Fixpoint interp_formula (D : Type) (m : model D) (f : formula) {struct f}
                               | left veqv' => d
                               | right vneqv' => ctx v' (conj vneqv' H)
                             end)
+    | FTrue => fun _ => True
+    | FFalse => fun _ => False
   end.
 
 (*
