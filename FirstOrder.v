@@ -227,6 +227,8 @@ Fixpoint interp_formula (m : model) (f : formula) {struct f}
 
 Definition closed f := forall v, ~free_formula v f.
 
+Definition closed_formula := {f : formula & closed f}.
+
 Definition interp_closed_formula (m : model) (f : formula)
            (H : closed f) : Prop.
   refine (interp_formula (m:=m) (f:=f) _).
