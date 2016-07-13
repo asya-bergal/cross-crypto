@@ -6,6 +6,15 @@ Import ListNotations.
 
 Load FirstOrder.
 
+Parameter bool : sort.
+Parameter message : sort.
+Parameter ite : func (bool :: message :: message :: []) message.
+Parameter ftrue : func [] bool.
+Parameter ffalse : func [] bool.
+Parameter empty_message : func [] message.
+Parameter eq_test : func (message :: message :: []) bool.
+Parameter equiv : forall (ss : list sort), predicate (ss ++ ss).
+
 Section Protocol.
   Variable Q : Set.
 
