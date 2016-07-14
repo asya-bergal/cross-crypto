@@ -2,38 +2,53 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Require Import Coq.Lists.List.
 Require Import Coq.Lists.ListSet.
+Require Import Coq.Structures.OrderedType.
 Import ListNotations.
 
 Load FirstOrder.
 
-Parameter bool : sort.
+Parameter sbool : sort.
 Parameter message : sort.
-Parameter ite : func (bool :: message :: message :: []) message.
-Parameter ftrue : func [] bool.
-Parameter ffalse : func [] bool.
+Parameter ite : func (sbool :: message :: message :: []) message.
+Parameter ftrue : func [] sbool.
+Parameter ffalse : func [] sbool.
 Parameter empty_message : func [] message.
-Parameter eq_test : func (message :: message :: []) bool.
+Parameter eq_test : func (message :: message :: []) sbool.
 Parameter equiv : forall (ss : list sort), predicate (ss ++ ss).
 
-Section Protocol.
-  Variable Q : Set.
+(*
+s is a function from variables to term
+theta is a function from variables to Formula
+control state with transition such that ordering is reasonable
+gg
+set of states
+
+*)
+  Variable Q : Type.
+  Variable Q_gt : Q -> Q -> Prop.
+  Infix "Q>" := Q_gt (at level 70).
+
+  Variable q0 : Q.
 
   Record transition := mkTransition {
-      from : Q * list name;
-      to : Q * list name;
-      inputs : list var;
-      input : var;
-      guard : formula;
-      output : term
+      from : Q;
+      to : Q;
+      inputs : list sort;
+      input : sort;
+      output_type : sort;
+      output : hlist term (input :: inputs) -> term output_type;
+      guard : hlist term (input :: inputs) -> term sbool
   }.
+  
+  (* Variable transitions : list transition. *)
 
-  Definition protocol := transition -> Prop.
+  (* Definition protocol := list transition -> Prop. *)
 
-  Record sym_state := mkState {
-      start : Q * list name;
-      attacker_inputs : list handle;
-      agent_outputs : list term
-  }.
+  (* Record sym_state := mkState { *)
+  (*     start : Q * list name; *)
+  (*     attacker_inputs : list handle; *)
+  (*     agent_outputs : list term *)
+  (* }. *)
 
   (* Definition valid_transition (from to : sym_state) : Prop := True. *)
   (* (* Definition valid_transition (from to : sym_state) : Prop := *) *)

@@ -8,7 +8,7 @@ Parameter func : list sort -> sort -> Set.
 Parameter predicate : list sort -> Set.
 
 Inductive term : sort -> Type :=
-| App : forall (dom : list sort) cod,
+App : forall {dom : list sort} {cod},
           (func dom cod) -> hlist term dom -> term cod.
 
 Definition term_terms_rect
