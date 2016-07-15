@@ -6,6 +6,7 @@ Require Import Coq.Structures.OrderedType.
 Import ListNotations.
 
 Load FirstOrder.
+Load Tuple.
 
 Definition head T (l : list T) (H : l <> []) : T.
   destruct l.
@@ -21,6 +22,22 @@ Parameter ffalse : func [] sbool.
 Parameter empty_message : func [] message.
 Parameter eq_test : func (message :: message :: []) sbool.
 Parameter equiv : forall (ss : list sort), predicate (ss ++ ss).
+
+Fixpoint repeat A (a : A) n :=
+  match n with
+    | 0 => []
+    | S n => a :: repeat a n
+  end.
+
+Fixpoint tuple_to_hlist A (T : A) P n (t : tuple (P T) n)
+: hlist P (repeat T n).
+  induction t; constructor; assumption.
+Defined.
+
+Inductive In_with_tail A : A -> list A -> list A -> Type :=
+| Here : forall hd tl, In_with_tail hd tl (hd :: tl)
+| Next : forall hd tl x xs, In_with_tail hd tl xs ->
+                            In_with_tail hd tl (x :: xs).
 
 (*
 s is a function from variables to term
@@ -42,59 +59,66 @@ Section Protocol.
       from : Q;
       to : Q;
       transition_order : from Q> to;
-      inputs : list sort;
-      input : sort;
-      output_type : sort;
-      output : hlist term (input :: inputs) -> term output_type;
-      guard : hlist term (input :: inputs) -> term sbool
+      t_n : nat;
+      output : tuple (term message) t_n -> term message -> term message;
+      guard : tuple (term message) t_n -> term message -> term sbool
   }.
 
-  Definition transition_from q := {t : transition | t.(from) = q}.
-
-  Variable transitions : forall q, list (transition_from q).
+  Variable transitions : forall q : Q, list transition.
+  Variable transitions_from : forall q, forall t, In t (transitions q) ->
+                                                  t.(from) = q.
 
   Definition final q : Prop := transitions q = [].
 
   Definition maximal (t : transition) : Prop :=
-    forall ts : hlist term (t.(input) :: t.(inputs)),
-      guard ts = App ftrue h[].
+    forall (is : tuple (term message) t.(t_n)) (i : term message),
+      guard is i = App ftrue h[].
 
   Definition has_max_transition (q : Q) (H : ~final q) : Prop :=
-    maximal (proj1_sig (head H)).
+    maximal (head H).
 
   Variable max_transition : forall q (H : ~final q), has_max_transition H.
 
-  (* Variable transitions : list transition. *)
+  Variable initial_knowledge : list (term message).
 
-  (* Definition protocol := list transition -> Prop. *)
+  Variable handles : forall n : nat,
+                       func (repeat message (n + length initial_knowledge))
+                            message.
 
-  (* Record sym_state := mkState { *)
-  (*     start : Q * list name; *)
-  (*     attacker_inputs : list handle; *)
-  (*     agent_outputs : list term *)
-  (* }. *)
+  Axiom TODO : forall {T : Type}, T.
 
-  (* Definition valid_transition (from to : sym_state) : Prop := True. *)
-  (* (* Definition valid_transition (from to : sym_state) : Prop := *) *)
-  (* (*   to.(guards) = set_add from.(guards) *) *)
+  Check eq_rect.
 
-  (* Definition sym_trans_seq (pi : protocol) (l : list sym_state) : Prop := *)
-  (*   match l with *)
-  (*     | to :: from :: xs => *)
-  (*       exists (t : transition), pi t /\ valid_transition from to *)
-  (*     | _ => True *)
-  (*   end. *)
-
-  (* Definition satisfies_formulas (m : model) (l : set closed_formula) : Prop := *)
-  (*   fold_left (fun P => fun f => interp_closed_formula m f /\ P) l True. *)
-
-  (* (* Lists have last state at the head *) *)
-  (* (* Is it more reasonable to have this look like H -> content? *) *)
-  (* Definition valid (m : model) (pi : protocol) (tr : list sym_state) *)
-  (*            (H : sym_trans_seq pi tr) : Prop := *)
-  (*   match tr with *)
-  (*     | [] => True *)
-  (*     | x :: _ => satisfies_formulas m x.(guards) *)
-  (*   end. *)
+  Inductive execution (m : model)
+  : forall n, Q -> tuple (term message) n ->
+              tuple (term message) (n + length initial_knowledge)
+              -> Type :=
+  | Initial : execution m q0 t[] (list_to_tuple initial_knowledge)
+  | Transition :
+      forall n q (inputs : tuple (term message) n)
+             (knowledge : tuple (term message)
+                                (n + length initial_knowledge))
+             (t : transition) (l : list transition) q',
+                   In_with_tail t l (transitions q) ->
+                   t.(to) = q' ->
+                   forall H : n = t.(t_n),
+                     execution m q inputs knowledge ->
+                     let new_input := (App (handles n)
+                                           (tuple_to_hlist knowledge)) in
+                     let new_inputs := new_input t:: inputs in
+                     let inputs' :=
+                         eq_rect n (tuple (term message)) inputs t.(t_n) H in
+                     let new_knowledge :=
+                         output inputs' new_input t:: knowledge in
+                     m.(interp_term) (guard inputs' new_input) =
+                     m.(interp_term) (App ftrue h[]) ->
+                     (forall (t' : transition) (H' : n = t'.(t_n)),
+                        let inputs' :=
+                            eq_rect n (tuple (term message))
+                                    inputs t'.(t_n) H' in
+                        In t' l ->
+                        m.(interp_term) (guard inputs' new_input) <>
+                        m.(interp_term) (App ftrue h[])) ->
+                     execution m q' new_inputs new_knowledge.
 
 End Protocol.

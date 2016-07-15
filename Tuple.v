@@ -1,6 +1,9 @@
 Set Implicit Arguments.
 Unset Strict Implicit.
 
+Require Import Coq.Lists.List.
+Import ListNotations.
+
 Inductive tuple (T : Type) : nat -> Type :=
 | tuple_nil : tuple T 0
 | tuple_cons : forall n, T -> tuple T n -> tuple T (S n).
@@ -25,6 +28,12 @@ Fixpoint tuple_append n m T (t : tuple T n) (t' : tuple T m) :
   match t with
     | t[] => t'
     | x t:: xs => x t:: (tuple_append xs t')
+  end.
+
+Fixpoint list_to_tuple T (l : list T) : tuple T (length l):=
+  match l with
+    | [] => t[]
+    | x :: xs => x t:: list_to_tuple xs
   end.
 
 Inductive htuple : forall n : nat, tuple Type n -> Type :=
