@@ -7,6 +7,12 @@ Import ListNotations.
 
 Load FirstOrder.
 
+Definition head T (l : list T) (H : l <> []) : T.
+  destruct l.
+  destruct (H eq_refl).
+  exact t.
+Defined.
+
 Parameter sbool : sort.
 Parameter message : sort.
 Parameter ite : func (sbool :: message :: message :: []) message.
@@ -24,6 +30,8 @@ gg
 set of states
 
 *)
+Section Protocol.
+
   Variable Q : Type.
   Variable Q_gt : Q -> Q -> Prop.
   Infix "Q>" := Q_gt (at level 70).
@@ -33,13 +41,29 @@ set of states
   Record transition := mkTransition {
       from : Q;
       to : Q;
+      transition_order : from Q> to;
       inputs : list sort;
       input : sort;
       output_type : sort;
       output : hlist term (input :: inputs) -> term output_type;
       guard : hlist term (input :: inputs) -> term sbool
   }.
-  
+
+  Definition transition_from q := {t : transition | t.(from) = q}.
+
+  Variable transitions : forall q, list (transition_from q).
+
+  Definition final q : Prop := transitions q = [].
+
+  Definition maximal (t : transition) : Prop :=
+    forall ts : hlist term (t.(input) :: t.(inputs)),
+      guard ts = App ftrue h[].
+
+  Definition has_max_transition (q : Q) (H : ~final q) : Prop :=
+    maximal (proj1_sig (head H)).
+
+  Variable max_transition : forall q (H : ~final q), has_max_transition H.
+
   (* Variable transitions : list transition. *)
 
   (* Definition protocol := list transition -> Prop. *)
