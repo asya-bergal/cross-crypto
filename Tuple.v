@@ -6,7 +6,7 @@ Import ListNotations.
 
 Inductive tuple (T : Type) : nat -> Type :=
 | tuple_nil : tuple T 0
-| tuple_cons : forall n, T -> tuple T n -> tuple T (S n).
+| tuple_cons : forall {n}, T -> tuple T n -> tuple T (S n).
 
 Notation " t[] " := (tuple_nil _).
 Infix "t::" := tuple_cons (at level 60, right associativity).
@@ -38,7 +38,7 @@ Fixpoint list_to_tuple T (l : list T) : tuple T (length l):=
 
 Inductive htuple : forall n : nat, tuple Type n -> Type :=
 | htuple_nil : htuple t[]
-| htuple_cons : forall n T (TS : tuple Type n),
+| htuple_cons : forall {n} T (TS : tuple Type n),
                   T -> htuple TS -> htuple (T t:: TS).
 
 Notation " ht[] " := (htuple_nil _).
