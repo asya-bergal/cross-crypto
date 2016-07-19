@@ -16,15 +16,6 @@ Definition head T (l : list T) (H : l <> []) : T.
   exact t.
 Defined.
 
-Parameter sbool : sort.
-Parameter message : sort.
-Parameter ite : func (sbool :: message :: message :: []) message.
-Parameter ftrue : func [] sbool.
-Parameter ffalse : func [] sbool.
-Parameter empty_message : func [] message.
-Parameter eq_test : func (message :: message :: []) sbool.
-Parameter equiv : forall (ss : list sort), predicate (ss ++ ss).
-
 Fixpoint repeat A (a : A) n :=
   match n with
     | 0 => []
@@ -42,6 +33,21 @@ Inductive In_with_tail A : A -> list A -> list A -> Type :=
                             In_with_tail hd tl (x :: xs).
 
 Section Protocol.
+
+  Context (sort : Type)
+          (func : list sort -> sort -> Type)
+          (predicate : list sort -> Type)
+          (sbool : sort)
+          (message : sort)
+          (ite : func (sbool :: message :: message :: []) message)
+          (ftrue : func [] sbool)
+          (ffalse : func [] sbool)
+          (empty_message : func [] message)
+          (eq_test : func (message :: message :: []) sbool)
+          (equiv : forall (ss : list sort), predicate (ss ++ ss)).
+
+  Notation "'term'" := (term func).
+  Notation "'model'" := (model func predicate).
 
   Variable Q : nat -> Type.
   Variable q0 : Q 0.
