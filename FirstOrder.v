@@ -1,7 +1,10 @@
 Set Implicit Arguments.
 Unset Strict Implicit.
 
-Load HList.
+Require Import Coq.Lists.List.
+Import ListNotations.
+
+Require Import CrossCrypto.HList.
 
 Parameter sort : Set.
 Parameter func : list sort -> sort -> Set.

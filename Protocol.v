@@ -1,12 +1,14 @@
 Set Implicit Arguments.
 Unset Strict Implicit.
+
 Require Import Coq.Lists.List.
 Require Import Coq.Lists.ListSet.
 Require Import Coq.Structures.OrderedType.
 Import ListNotations.
 
-Load FirstOrder.
-Load Tuple.
+Require Import CrossCrypto.FirstOrder.
+Require Import CrossCrypto.Tuple.
+Require Import CrossCrypto.HList.
 
 Definition head T (l : list T) (H : l <> []) : T.
   destruct l.
