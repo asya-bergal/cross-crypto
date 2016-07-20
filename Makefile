@@ -1,9 +1,7 @@
 MOD_NAME := CrossCrypto
-SRC_DIR  := .
+SRC_DIR  := src
 
-.PHONY: coq clean install
-
-.DEFAULT_GOAL := coq
+.PHONY: coq clean install fcf clean-fcf clean-all
 
 coq: Makefile.coq
 	$(MAKE) -f Makefile.coq
@@ -15,5 +13,13 @@ clean: Makefile.coq
 	$(MAKE) -f Makefile.coq clean
 	rm -f Makefile.coq
 
+clean-fcf:
+	$(MAKE) -C fcf/src/FCF clean
+
+clean-all: clean clean-fcf
+
 install: coq Makefile.coq
 	$(MAKE) -f Makefile.coq install
+
+fcf:
+	$(MAKE) -C fcf/src/FCF

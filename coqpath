@@ -1,0 +1,2 @@
+#!/bin/bash
+env COQPATH="$(pwd)/fcf/src/FCF${COQPATH:+:}$COQPATH" $@
