@@ -2,13 +2,13 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 
 Require Import Coq.Lists.List.
-Require Import Coq.Lists.ListSet.
 Require Import Coq.Structures.OrderedType.
 Import ListNotations.
 
 Require Import CrossCrypto.FirstOrder.
 Require Import CrossCrypto.Tuple.
 Require Import CrossCrypto.HList.
+Require Import CrossCrypto.Tail.
 
 Definition head T (l : list T) (H : l <> []) : T.
   destruct l.
@@ -27,10 +27,23 @@ Fixpoint tuple_to_hlist A (T : A) P n (t : tuple (P T) n)
   induction t; constructor; assumption.
 Defined.
 
-Inductive In_with_tail A : A -> list A -> list A -> Prop :=
-| Here : forall hd tl, In_with_tail hd tl (hd :: tl)
-| Next : forall hd tl x xs, In_with_tail hd tl xs ->
-                            In_with_tail hd tl (x :: xs).
+Inductive eq_2 (A : Type) (P : A -> Type) (a a' : A) (p : P a) (p' : P a')
+: Prop :=
+| eq_refl2 : forall (H : a = a'),
+               eq_rect a P p a' H = p' -> eq_2 p p'.
+
+Definition eq_rect2 (A : Type) (P : A -> Type) (a a' : A)
+           (p : P a) (p' : P a') (Q : forall a : A, P a -> Type)
+           (H : eq_2 p p') (q : Q a p) : Q a' p'.
+  assert ({H : a = a' | eq_rect a P p a' H = p'}) as H'.
+  destruct H as [H H'].
+  refine (exist _ H H').
+  clear H.
+  destruct H'.
+  subst a.
+  subst p'.
+  assumption.
+Defined.
 
 Section Protocols.
 
@@ -105,25 +118,61 @@ Section Protocols.
             t.(output) inputs new_input t:: knowledge in
         execution q' new_inputs new_knowledge.
 
+  Definition valid_exec (m : model) (p : protocol)
+             n (q : p.(Q) n) inputs knowledge
+             (e : execution q inputs knowledge) : Prop.
+    induction e.
+    exact True.
+    set (guard_condition := (fun t_ : {q' : Q p (S n) & transition q q' } =>
+                              let t := projT2 t_ in
+                              m.(interp_term) (t.(guard) inputs new_input) =
+                              m.(interp_term) (App ftrue h[]))).
+    exact (exists t_ l,
+             In_with_tail t_ l (transitions q) /\
+             (eq_2 (projT2 t_) t) /\
+             guard_condition t_ /\
+             (forall t'_, In t'_ l -> ~guard_condition t'_)).
+  Defined.
+
+  Lemma valid_exec_extension_unique :
+    forall (m : model) (p : protocol) n (q : p.(Q) n) inputs knowledge
+           (e : execution q inputs knowledge)
+           q' (t : transition q q') q'1 (t1 : transition q q'1),
+      valid_exec m (Transition t e) -> valid_exec m (Transition t1 e) ->
+      (eq_2 t t1).
+    intros m p n q inputs knowledge e q' t q'1 t1 Hv Hv1.
+    simpl in Hv.
+    destruct Hv as [t_ [l [Iwt [[eq' et] [Hguard Hguardrest]]]]].
+    subst q'.
+    subst t.
+    simpl in Hv1.
+    destruct Hv1 as [t_1 [l1 [Iwt1 [[eq'1 et1] [Hguard1 Hguardrest1]]]]].
+    subst q'1.
+    subst t1.
+    simpl.
+
+    assert (t_ = t_1) as Heqt_.
+
+    set (new_input := (App (p.(handles) n)
+                              (tuple_to_hlist knowledge))).
+    set (guard_condition := (fun t_ : {q' : Q p (S n) & transition q q' } =>
+                              let t := projT2 t_ in
+                              m.(interp_term) (t.(guard) inputs new_input) =
+                              m.(interp_term) (App ftrue h[]))).
+    eapply head_unique_prop with (P := guard_condition); eassumption.
+    subst t_1.
+    refine (eq_refl2 (H:=eq_refl) _).
+    reflexivity.
+  Qed.
+
   Inductive Execution (p : protocol) : Type :=
   | exec : forall n (q : p.(Q) n) inputs knowledge
                   (e : execution q inputs knowledge), Execution p.
 
-  Definition valid_exec (m : model) (p : protocol) (e : Execution p) : Prop.
-    destruct e as [n q inputs knowledge e].
-    induction e.
-    exact True.
-    exact (exists t_ l,
-             In_with_tail t_ l (transitions q) /\
-             (exists H : q' = projT1 t_,
-                projT2 t_ = eq_rect q' (transition _) t (projT1 t_) H) /\
-             m.(interp_term) (t.(guard) inputs new_input) =
-             m.(interp_term) (App ftrue h[]) /\
-             (forall t'_, In t'_ l ->
-                          let t' := projT2 t'_ in
-                          m.(interp_term) (t'.(guard) inputs new_input) <>
-                          m.(interp_term) (App ftrue h[]))).
-  Defined.
+  Definition valid_Exec (m : model) (p : protocol) (e : Execution p) : Prop :=
+    match e with
+      | exec e => valid_exec m e
+    end.
 
   Definition final_exec (p : protocol) (e : Execution p) : Prop :=
     match e with
@@ -132,9 +181,14 @@ Section Protocols.
 
   Theorem exec_final_valid_unique :
     forall (m : model) (p : protocol) (e e' : Execution p),
-      final_exec e -> final_exec e' -> valid_exec m e -> valid_exec m e' ->
+      final_exec e -> final_exec e' -> valid_Exec m e -> valid_Exec m e' ->
       e = e'.
-    intros m p e e' Hfe Hfe' Hve Hve'.
+    intros m p e e'' Hfe Hfe'' Hve Hve''.
+    destruct e as [n q inputs knowledge e].
+    destruct e'' as [n' q' inputs' knowledge' e''].
+    generalize e'' Hfe'' Hve''.
+    induction e.
+    intros e' Hfe' Hve'.
   Admitted.  (* TODO *)
 
   (* Existence of a final valid execution requires at least decidability
