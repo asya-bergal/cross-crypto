@@ -2,3 +2,4 @@
 *\.d
 *\.glob
 *\.vo
+Makefile.coq
