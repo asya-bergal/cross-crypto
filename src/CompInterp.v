@@ -1,6 +1,5 @@
 Set Implicit Arguments.
 
-Add LoadPath "../fcf/src/FCF".
 Require Import WC_PolyTime.
 Require Import Admissibility.
 Require Import FCF.
