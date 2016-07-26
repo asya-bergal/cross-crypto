@@ -3,6 +3,8 @@ Unset Strict Implicit.
 
 Require Import Coq.Lists.List.
 Require Import Coq.Structures.OrderedType.
+Require Import Coq.Arith.Arith.
+Require Import Omega.
 Import ListNotations.
 
 Require Import CrossCrypto.Tail.
@@ -209,7 +211,7 @@ Section Protocols.
 
     destruct H' as [q0' [t0' [Hv0' [R0' [[? eR'] HnR0']]]]].
     subst q'.
-    simpl in *.
+    simpl in eR'.
     subst R'.
 
     assert (q0 = q0') by (eapply IHn; eassumption).
@@ -219,8 +221,44 @@ Section Protocols.
     reflexivity.
   Qed.
 
-  Lemma reaches_unique_final_n p (c : client p) q q' (R : reaches c q) (R' : reaches c q') : final q -> final q' -> reaches_n R = reaches_n R'.
-  Admitted. (* TODO *)
+  Lemma no_final_extension p (c : client p) q q'
+        (R : reaches c q) (R' : reaches c q') :
+    final q -> reaches_n R < reaches_n R' -> False.
+    intros Fq l.
+
+    assert (exists n, reaches_n R' = S (n + reaches_n R)) as l' by
+          (exists (reaches_n R' - reaches_n R - 1); omega); clear l.
+    destruct l' as [n H].
+    destruct (reaches_n_inv H) as [q'0 [t [Hv [R'0 [[? _] HnR'0]]]]];
+      clear H.
+    subst q'.
+    clear R'.
+
+    revert q R Fq q'0 t Hv R'0 HnR'0.
+    induction n; intros q R Fq q'0 t Hv R'0 HnR'0.
+
+    simpl in HnR'0.
+    assert (q = q'0) by
+        (symmetry in HnR'0; eapply reaches_unique_n; eassumption).
+    subst q'0.
+    exact (Fq t).
+
+    destruct (reaches_n_inv HnR'0) as [q'1 [t0 [Hv0 [R'1 [[? _] HnR'1]]]]];
+      clear HnR'0.
+    subst q'0.
+    clear R'0.
+
+    eapply IHn with (t:=t0); eassumption.
+  Qed.
+
+  Lemma reaches_unique_final_n p (c : client p) q q' (R : reaches c q)
+        (R' : reaches c q') :
+    final q -> final q' -> reaches_n R = reaches_n R'.
+    intros Fq Fq'.
+    destruct (lt_eq_lt_dec (reaches_n R) (reaches_n R')) as [[l | e] | l];
+      [exfalso | assumption | exfalso];
+      eapply no_final_extension; swap 1 2; eassumption.
+  Qed.
 
   Theorem reaches_unique_final p (c : client p) q q'
           (R : reaches c q) (R' : reaches c q') :
