@@ -4,6 +4,7 @@ Require Import WC_PolyTime.
 Require Import Admissibility.
 Require Import FCF.
 Require Import Asymptotic.
+Require Import CrossCrypto.FrapTactics.
 Require Import CrossCrypto.FirstOrder.
 Require Import CrossCrypto.SymbolicModel.
 Require Import CrossCrypto.HList.
@@ -18,16 +19,37 @@ Section CompInterp.
   
   Context `{reasonable cost}.
 
-  Record PolyComp (n : nat) :=
-    mkPolyComp {
-        comp : nat -> Comp (Bvector n);
-        poly : admissible_oc cost (fun _ => unit) (fun _ => unit) (fun _ => (Bvector n)) (fun (eta : nat) => OC_Ret unit unit (comp eta))
+  Record MessageComp :=
+    mkMessageComp {
+        message_comp : nat -> Comp ({n : nat & Bvector n});
+        message_poly : admissible_oc cost (fun _ => unit) (fun _ => unit) (fun _ => {n : nat & (Bvector n)}) (fun (eta : nat) => OC_Ret unit unit (message_comp eta))
+      }.
+
+  Lemma message_eq_dec : forall (m n : {n : nat & Bvector n}), {m = n} + {m <> n}.
+    intros.
+    destruct m; destruct n.
+    cases (x ==n x0).
+    subst x.
+    cases (Bvector_eq_dec b b0).
+    subst b.
+    left.
+    congruence.
+    right.
+    intuition.
+    right.
+    congruence.
+  Defined.
+
+  Record BoolComp :=
+    mkBoolComp {
+        bool_comp : nat -> Comp bool;
+        bool_poly : admissible_oc cost (fun _ => unit) (fun _ => unit) (fun _ => bool) (fun (eta : nat) => OC_Ret unit unit (bool_comp eta))
       }.
 
   Definition CompDomain (s : SymbolicSort) : Type :=
     match s with
-    | Message => {n : nat & PolyComp n}
-    | Bool => PolyComp 1
+    | Message => MessageComp
+    | Bool => BoolComp
     end.
 
   Definition names (n : nat) := fun (eta : nat) => Rnd eta.
@@ -35,15 +57,11 @@ Section CompInterp.
 
   Axiom TODO : forall {T : Type}, T.
 
-  (* Definition true_comp := Ret (@Bvector_eq_dec 1) (Bvect_true 1). *)
-  (* Definition false_comp := Ret (@Bvector_eq_dec 1) (Bvect_false 1). *)
-
   Ltac trivial_polynomial :=
     unfold polynomial; exists 0%nat; exists 0%nat; exists 0%nat; unfold expnat; simpl; intros; omega.
     
-  (* All computations that are simply constants are polytime *)
-  Lemma constant_polytime : forall n (b : Bvector n),
-      admissible_oc cost (fun _ => unit) (fun _ => unit) (fun _ => (Bvector n)) (fun (eta : nat) => OC_Ret unit unit (Ret (@Bvector_eq_dec n) b)).
+  Lemma constant_polytime : forall T (eq : eq_dec T) (b : T),
+      admissible_oc cost (fun _ => unit) (fun _ => unit) (fun _ => T) (fun (eta : nat) => OC_Ret unit unit (Ret eq b)).
     Proof.
       intros.
       unfold admissible_oc.
@@ -63,17 +81,18 @@ Section CompInterp.
           constructor.
     Qed.
 
-    Definition mk_constant_polycomp {n} (b : Bvector n) : PolyComp n.
-      refine (mkPolyComp (fun _ => Ret (@Bvector_eq_dec n) b) _ ).
-      apply constant_polytime.
-    Defined.
+    Definition constant_boolcomp (b : bool) : BoolComp :=
+      mkBoolComp (fun _ => Ret bool_dec b) (constant_polytime bool_dec b).
+
+    Definition constant_messagecomp (m : {n : nat & Bvector n}) : MessageComp :=
+      mkMessageComp (fun _ => Ret message_eq_dec m) (constant_polytime message_eq_dec m).
 
   Definition CompInterpFunc dom cod (s : SymbolicFunc dom cod) (h : hlist CompDomain dom) : (CompDomain cod) :=
     match s with
-      | STrue => mk_constant_polycomp (Bvect_true 1)
-      | SFalse => mk_constant_polycomp (Bvect_false 1)
+      | STrue => constant_boolcomp true
+      | SFalse => constant_boolcomp false
       | IfThenElse => TODO
-      | EmptyMsg => TODO
+      | EmptyMsg => constant_messagecomp (existT Bvector 0 Bnil)%nat
       | Eq => TODO
       | EqL => TODO
       | Name n => TODO
