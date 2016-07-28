@@ -62,21 +62,19 @@ Definition tr_len_inv p (R : trace p) n :
   revert n.
   remember R as r.
   destruct r as [| q' r]; intros n H.
-  inversion H.
+  - inversion H.
 
-  exists q'.
-  exists r.
-  split.
-  reflexivity.
-
-  inversion H.
-  reflexivity.
+  - exists q'.
+    exists r.
+    split.
+    + reflexivity.
+    + inversion H.
+      reflexivity.
 Defined.
 
 Lemma valid_inv p (q' : p.(state)) (R : trace p)
       (vRt : valid (TTransition q' R)) : valid R.
-  inversion vRt.
-  assumption.
+  inversion vRt; assumption.
 Qed.
 
 Definition valid_len_inv p (R : trace p) (vR : valid R) n :
@@ -98,9 +96,7 @@ Lemma unique_valid_extension p (U : unique_transition p)
   q = q'.
   inversion vRq.
   inversion vRq'.
-  eapply U.
-  eassumption.
-  eassumption.
+  eapply U; eassumption.
 Qed.
 
 Lemma trace_unique_n p (U : unique_transition p)
@@ -111,27 +107,27 @@ Lemma trace_unique_n p (U : unique_transition p)
   symmetry in HnR, HnR'.
   revert R R' vR vR' HnR HnR'.
   induction n; intros R R' vR vR' HnR HnR'.
-  assert (R = TInitial p.(initial)) by
-      (eapply trace_root_unique; eassumption); subst R.
-  assert (R' = TInitial p.(initial)) by
-      (eapply trace_root_unique; eassumption); subst R'.
-  reflexivity.
+  - assert (R = TInitial p.(initial)) by
+        (eapply trace_root_unique; eassumption); subst R.
+    assert (R' = TInitial p.(initial)) by
+        (eapply trace_root_unique; eassumption); subst R'.
+    reflexivity.
 
-  pose proof (valid_len_inv vR HnR) as H.
-  pose proof (valid_len_inv vR' HnR') as H'.
-  clear HnR HnR'.
-  destruct H as [q0 [R0 [? [? ?]]]].
-  subst R.
+  - pose proof (valid_len_inv vR HnR) as H.
+    pose proof (valid_len_inv vR' HnR') as H'.
+    clear HnR HnR'.
+    destruct H as [q0 [R0 [? [? ?]]]].
+    subst R.
 
-  destruct H' as [q'0 [R'0 [? [? ?]]]].
-  subst R'.
+    destruct H' as [q'0 [R'0 [? [? ?]]]].
+    subst R'.
 
-  assert (R0 = R'0) by (eapply IHn; eassumption); subst R'0.
+    assert (R0 = R'0) by (eapply IHn; eassumption); subst R'0.
 
-  assert (q0 = q'0) by (eapply unique_valid_extension; eassumption);
-    subst q'0.
+    assert (q0 = q'0) by (eapply unique_valid_extension; eassumption);
+      subst q'0.
 
-  reflexivity.
+    reflexivity.
 Qed.
 
 Lemma complete_no_extension p (q : p.(state)) (R : trace p) :
@@ -154,16 +150,14 @@ Lemma complete_no_greater p (U : unique_transition p)
 
   revert q'0 R'0 HnR'0 vR' vR'0.
   induction n; intros q'0 R'0 HnR'0 vR' vR'0.
+  - simpl in HnR'0.
+    assert (R = R'0) by
+        (symmetry in HnR'0; eapply trace_unique_n; eassumption); subst R'0.
+    eapply complete_no_extension; eassumption.
 
-  simpl in HnR'0.
-  assert (R = R'0) by
-      (symmetry in HnR'0; eapply trace_unique_n; eassumption); subst R'0.
-  eapply complete_no_extension; eassumption.
-
-  destruct (valid_len_inv vR'0 HnR'0) as [q'1 [R'1 [? [HnR'1 vR'1]]]];
+  - destruct (valid_len_inv vR'0 HnR'0) as [q'1 [R'1 [? [HnR'1 vR'1]]]];
     clear HnR'0; subst R'0.
-
-  eapply IHn; swap 1 2; eassumption.
+    eapply IHn; swap 1 2; eassumption.
 Qed.
 
 Lemma complete_same_len p (U : unique_transition p)
@@ -188,8 +182,8 @@ Definition extend_trace p (E : transition_dec p)
   {R' : trace p | valid R' /\ state_lt (head R') (head R)}%type +
   {complete R}.
   destruct (E (head R)) as [[q' t] | Fq].
-  left; eexists; split; [econstructor|]; eassumption.
-  right; assumption.
+  - left; eexists; split; [econstructor|]; eassumption.
+  - right; assumption.
 Defined.
 
 Definition tr_lt p (R R' : trace p) : Prop := state_lt (head R) (head R').
@@ -209,10 +203,10 @@ Fixpoint tail p (R : trace p) : list p.(state) :=
 Lemma head_tail_inv p (R : trace p) :
   R = tr_with_head_tail (head R) (tail R).
   induction R.
-  reflexivity.
-  simpl.
-  rewrite IHR at 1.
-  reflexivity.
+  - reflexivity.
+  - simpl.
+    rewrite IHR at 1.
+    reflexivity.
 Qed.
 
 Lemma head_inv p (q : p.(state)) qs :
