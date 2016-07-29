@@ -1,7 +1,7 @@
 Set Implicit Arguments.
 
 Require Import Omega.
-Require Import CrossCrypto.FrapTactics.
+Require CrossCrypto.FrapTactics.
 Require Import Coq.Lists.List.
 Import ListNotations.
 
@@ -18,7 +18,7 @@ Definition head_with_proof T (l : list T) (H : l <> []) : T.
 Defined.
 
 Fixpoint nth_with_proof T (n:nat) (l:list T) (H : length(l) > n) {struct l} : T.
-  cases n; cases l; simplify; try omega.
+  FrapTactics.cases n; FrapTactics.cases l; FrapTactics.simplify; try omega.
   exact t.
   refine (nth_with_proof T n l _).
   omega.

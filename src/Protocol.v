@@ -2,27 +2,15 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 
 Require Import Coq.Lists.List.
-Require Import Coq.Structures.OrderedType.
 Import ListNotations.
 
 Require Import CrossCrypto.FirstOrder.
 Require Import CrossCrypto.Tuple.
+Require Import CrossCrypto.ListUtil.
 Require Import CrossCrypto.HList.
 Require Import CrossCrypto.Tail.
 Require Import CrossCrypto.Execution.
 Require Import Omega.
-
-Definition head T (l : list T) (H : l <> []) : T.
-  destruct l.
-  destruct (H eq_refl).
-  exact t.
-Defined.
-
-Fixpoint repeat A (a : A) n :=
-  match n with
-    | 0 => []
-    | S n => a :: repeat a n
-  end.
 
 Fixpoint tuple_to_hlist A (T : A) P n (t : tuple (P T) n)
 : hlist P (repeat T n).
@@ -85,7 +73,7 @@ Section Protocols.
         t.(guard) is i = App ftrue h[].
 
     Definition has_max_transition n (q : Q n) (H : ~final_ q) : Prop :=
-      maximal_transition (projT2 (head H)).
+      maximal_transition (projT2 (head_with_proof H)).
 
   End Protocol.
 
