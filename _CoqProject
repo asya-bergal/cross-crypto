@@ -1,5 +1,6 @@
 -R src CrossCrypto
 src/FrapTactics.v
+src/ListUtil.v
 src/CompInterp.v
 src/FirstOrder.v
 src/HList.v
