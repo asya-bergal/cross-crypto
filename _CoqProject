@@ -7,4 +7,5 @@ src/HList.v
 src/Protocol.v
 src/SymbolicModel.v
 src/Tail.v
+src/Transition.v
 src/Tuple.v
