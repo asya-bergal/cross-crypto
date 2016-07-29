@@ -53,13 +53,13 @@ Section FirstOrder.
     (P := (fun s t => m s))
       (Q := fun ss ts => hlist m ss)
       (t := t); clear s t.
-    (* app *)
-    intros dom cod f x IHts.
-    apply (interp_func f); assumption.
-    (* nil *)
-    constructor.
-    (* cons *)
-    constructor; assumption.
+    - (* app *)
+      intros dom cod f x IHts.
+      apply (interp_func f); assumption.
+    - (* nil *)
+      constructor.
+    - (* cons *)
+      constructor; assumption.
   Defined.
 
   Definition interp_terms (m : model) ss (ts : hlist term ss)

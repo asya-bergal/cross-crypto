@@ -7,8 +7,8 @@ Require Import Coq.Structures.OrderedType.
 Require Import Coq.Arith.Arith.
 Require Import Omega.
 
-Record protocol :=
-  mkProtocol {
+Record machine :=
+  mkMachine {
       state : Type;
       initial : state;
       state_lt : state -> state -> Prop;
