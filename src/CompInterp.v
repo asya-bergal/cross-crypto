@@ -104,7 +104,6 @@ Section CompInterp.
   Defined.
 
   Definition EqDec_message : EqDec message.
-    Print EqDec.
     refine (Build_EqDec _ _).
     intros.
     cases (message_eq_dec x y).

@@ -5,6 +5,12 @@ Require Import CrossCrypto.FrapTactics.
 Require Import Coq.Lists.List.
 Import ListNotations.
 
+Fixpoint repeat A (a : A) n :=
+  match n with
+    | 0 => []
+    | S n => a :: repeat a n
+  end.
+
 Definition head_with_proof T (l : list T) (H : l <> []) : T.
   destruct l.
   destruct (H eq_refl).
