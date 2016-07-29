@@ -1,7 +1,5 @@
 Require Import Eqdep String Arith Omega Program Relations Bool.
-Export String Arith Relations Bool.
 Require Import List.
-Export List ListNotations.
 Open Scope string_scope.
 Open Scope list_scope.
 
