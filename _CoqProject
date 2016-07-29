@@ -4,6 +4,7 @@ src/Execution.v
 src/FirstOrder.v
 src/FrapTactics.v
 src/HList.v
+src/ListUtil.v
 src/Protocol.v
 src/SymbolicModel.v
 src/Tail.v
