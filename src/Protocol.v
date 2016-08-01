@@ -105,6 +105,34 @@ Section Protocols.
   Definition machine_initial p : machine_state p :=
     existT _ 0 (q0 p, t[], initial_knowledge_t p).
 
+  Definition new_input p n
+             (knowledge : tuple (term message)
+                                (n + length p.(initial_knowledge))) :=
+    App (p.(handles) n) (tuple_to_hlist knowledge).
+
+  Definition new_inputs p n
+             (inputs : tuple (term message) n)
+             (knowledge : tuple (term message)
+                                (n + length p.(initial_knowledge))) :=
+    (new_input knowledge) t:: inputs.
+
+  Definition new_knowledge p n (q : p.(Q) n) q'
+             (inputs : tuple (term message) n)
+             (knowledge : tuple (term message)
+                                (n + length p.(initial_knowledge)))
+             (t : transition q q') :=
+    t.(output) inputs (new_input knowledge) t:: knowledge.
+
+  Definition guard_condition (m : model) p
+             n (q : p.(Q) n)
+             (inputs : tuple (term message) n)
+             (knowledge : tuple (term message)
+                                (n + length p.(initial_knowledge)))
+             (t_ : {q' : p.(Q) (S n) & transition q q'}) :=
+    let t := projT2 t_ in
+    m.(interp_term) (t.(guard) inputs (new_input knowledge)) =
+    m.(interp_term) (App ftrue h[]).
+
   Inductive transition_valid (m : model) (p : protocol) n :
     p.(Q) n -> tuple (term message) n ->
     tuple (term message) (n + length p.(initial_knowledge)) ->
@@ -113,15 +141,9 @@ Section Protocols.
   | TransValid q inputs knowledge t_ l :
       let q' := projT1 t_ in
       let t := projT2 t_ in
-      let new_input := (App (p.(handles) n)
-                            (tuple_to_hlist knowledge)) in
-      let new_inputs := new_input t:: inputs in
-      let new_knowledge :=
-          t.(output) inputs new_input t:: knowledge in
-      let guard_condition := (fun t_ : {q' : Q p (S n) & transition q q'} =>
-                                let t := projT2 t_ in
-                                m.(interp_term) (t.(guard) inputs new_input) =
-                                m.(interp_term) (App ftrue h[])) in
+      let new_inputs := new_inputs inputs knowledge in
+      let new_knowledge := new_knowledge inputs knowledge t in
+      let guard_condition := guard_condition m inputs knowledge in
       In_with_tail t_ l (transitions q) ->
       guard_condition t_ ->
       (forall t'_, In t'_ l -> ~guard_condition t'_) ->
@@ -135,10 +157,10 @@ Section Protocols.
     transition_valid m q inputs knowledge q'2 inputs'2 knowledge'2 ->
     q'1 = q'2 /\ inputs'1 = inputs'2 /\ knowledge'1 = knowledge'2.
     intros V1 V2.
-    inversion_clear V1 as [? ? knowledge1 t_1 l1 q'1_ t1 new_input1
-                             inputs'1_ knowledge'1_ guard1 ? HG1 HNG1].
-    inversion_clear V2 as [? ? knowledge2 t_2 l2 q'2_ t2 new_input2
-                             inputs'2_ knowledge'2_ guard2 ? HG2 HNG2].
+    inversion_clear V1 as [? ? ? t_1 l1 q'1_ t1 inputs'1_ knowledge'1_
+                             guard1 Iwt1 HG1 HNG1].
+    inversion_clear V2 as [? ? ? t_2 l2 q'2_ t2 inputs'2_ knowledge'2_
+                             guard2 Iwt2 HG2 HNG2].
     subst.
     replace guard2 with guard1 in * by reflexivity; clear guard2.
 
@@ -217,6 +239,19 @@ Section Protocols.
   Definition model_dec_bool (m : model) :=
     forall x y : m sbool, {x = y} + {x <> y}.
 
+  Definition guard_condition_dec m p (mE : model_dec_bool m)
+             n (q : p.(Q) n) inputs knowledge :
+    forall t_ : {q' : p.(Q) (S n) & transition q q'},
+      {guard_condition m inputs knowledge t_} +
+      {~guard_condition m inputs knowledge t_}.
+    intro t_.
+    set (t := projT2 t_).
+    set (new_input := new_input knowledge).
+    destruct (mE (m.(interp_term) (t.(guard) inputs new_input))
+                 (m.(interp_term) (App ftrue h[]))) as [e | ne];
+        [left | right]; assumption.
+  Defined.
+
   Definition valid_transition_dec (m : model) (p : protocol)
              (mE : model_dec_bool m)
              n (q : p.(Q) n) inputs knowledge :
@@ -226,32 +261,19 @@ Section Protocols.
                                                q' inputs' knowledge'}}} +
     {final q}.
 
-    set (new_input := (App (p.(handles) n)
-                           (tuple_to_hlist knowledge))).
-    set (new_inputs := new_input t:: inputs).
-    set (guard_condition := (fun t_ : {q' : Q p (S n) & transition q q'} =>
-                               let t := projT2 t_ in
-                               m.(interp_term) (t.(guard) inputs new_input) =
-                               m.(interp_term) (App ftrue h[]))).
+    set (new_input := new_input knowledge).
+    set (new_inputs := new_inputs inputs knowledge).
+    set (guard_condition := guard_condition m (q:=q) inputs knowledge).
 
-    (* TODO abstract this assertion as a lemma *)
-    assert (forall t_, {guard_condition t_} + {~guard_condition t_})
-      as guard_condition_dec.
-    {
-      intro t_.
-      set (t := projT2 t_).
-      destruct (mE (m.(interp_term) (t.(guard) inputs new_input))
-                   (m.(interp_term) (App ftrue h[]))) as [e | ne];
-        [left | right]; assumption.
-    }
-    destruct (last_prop_dec guard_condition_dec (transitions q)) as
+    destruct (last_prop_dec (guard_condition_dec mE (q:=q) inputs knowledge)
+                            (transitions q)) as
         [[t_ [l [Iwt [nl yt]]]] | no].
     - left.
       set (q' := projT1 t_).
       set (t := projT2 t_).
       exists q'.
       exists new_inputs.
-      set (new_knowledge := t.(output) inputs new_input t:: knowledge).
+      set (new_knowledge := new_knowledge inputs knowledge t).
       exists new_knowledge.
       econstructor; eassumption.
     - right.
@@ -260,8 +282,7 @@ Section Protocols.
       + exfalso.
         eapply no.
         * rewrite el; constructor; reflexivity.
-        * unfold maximal_transition, maximal_transition_ in M.
-          unfold guard_condition.
+        * hnf in M |- *.
           rewrite M.
           reflexivity.
       + assumption.
