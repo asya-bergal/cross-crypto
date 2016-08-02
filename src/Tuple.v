@@ -1,6 +1,7 @@
 Set Implicit Arguments.
 Unset Strict Implicit.
 
+Require Import CrossCrypto.FrapTactics.
 Require Import Coq.Lists.List.
 Import ListNotations.
 
@@ -10,6 +11,15 @@ Inductive tuple (T : Type) : nat -> Type :=
 
 Notation " t[] " := (tuple_nil _).
 Infix "t::" := tuple_cons (at level 60, right associativity).
+
+Fixpoint tnth n A (t : tuple A n) i (H : i < n) : A.
+  cases i; cases n; try linear_arithmetic.
+  inversion t.
+  exact X.
+  inversion t.
+  refine (tnth n A X0 i _).
+  linear_arithmetic.
+Defined.
 
 Fixpoint tuple_fold n A B (f : A -> B -> B) (t : tuple A n) (b : B) : B :=
   match t with
