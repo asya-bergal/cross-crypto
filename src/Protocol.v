@@ -3,32 +3,14 @@ Unset Strict Implicit.
 
 Require Import Coq.Lists.List.
 Import ListNotations.
-
-Require Import CrossCrypto.FirstOrder.
-Require Import CrossCrypto.Tuple.
-Require Import CrossCrypto.ListUtil.
-Require Import CrossCrypto.HList.
-Require Import CrossCrypto.Tail.
-Require Import CrossCrypto.Execution.
 Require Import Omega.
 
-Inductive eq_2 (A : Type) (P : A -> Type) (a a' : A) (p : P a) (p' : P a')
-: Prop :=
-| eq_refl2 : forall (H : a = a'),
-               eq_rect a P p a' H = p' -> eq_2 p p'.
-
-Definition eq_rect2 (A : Type) (P : A -> Type) (a a' : A)
-           (p : P a) (p' : P a') (Q : forall a : A, P a -> Type)
-           (H : eq_2 p p') (q : Q a p) : Q a' p'.
-  assert ({H : a = a' | eq_rect a P p a' H = p'}) as H'.
-  destruct H as [H H'].
-  refine (exist _ H H').
-  clear H.
-  destruct H'.
-  subst a.
-  subst p'.
-  assumption.
-Defined.
+Require Import CrossCrypto.Execution.
+Require Import CrossCrypto.FirstOrder.
+Require Import CrossCrypto.HList.
+Require Import CrossCrypto.ListUtil.
+Require Import CrossCrypto.Tail.
+Require Import CrossCrypto.Tuple.
 
 Section Protocols.
 
