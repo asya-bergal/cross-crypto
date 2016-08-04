@@ -57,18 +57,18 @@ Section Protocols.
     Variable Q : nat -> Type.
     Variable q0 : Q 0.
 
-    Record transition_ n (from : Q n) (to : Q (S n)) :=
+    Record transition_ n :=
       mkTransition {
           output : tuple (term message) n -> term message -> term message;
-          guard : tuple (term message) n -> term message -> term sbool
+          guard : tuple (term message) n -> term message -> term sbool;
+          next_state : Q (S n)
         }.
 
-    Variable transitions : forall n (q : Q n),
-                             list {q' : Q (S n) & transition_ q q'}.
+    Variable transitions : forall n, Q n -> list (transition_ n).
 
     Definition final_ n (q : Q n) : Prop := transitions q = [].
 
-    Definition maximal_transition_ n q q' (t : transition_ q q') : Prop :=
+    Definition maximal_transition_ n (t : transition_ n) : Prop :=
       forall (is : tuple (term message) n) (i : term message),
         t.(guard) is i = App ftrue h[].
 
@@ -80,17 +80,16 @@ Section Protocols.
         q0 : Q 0;
         N_cap : nat;
         fin_Q : forall n : nat, Q n -> n < N_cap;
-        transition : forall n, Q n -> Q (S n) -> Type := @transition_ Q;
-        transitions : forall n (q : Q n),
-                        list {q' : Q (S n) & transition q q'};
+        transition : nat -> Type := @transition_ Q;
+        transitions : forall n, Q n -> list (transition n);
         final : forall n, Q n -> Prop := @final_ Q transitions;
-        maximal_transition : forall n q q' (t : transition q q'), Prop :=
+        maximal_transition : forall n, transition n -> Prop :=
           @maximal_transition_ Q;
         max_transition : forall n (q : Q n),
-            {t_ : {q' : Q (S n) & transition q q'} &
-                  {l : _ | maximal_transition n (projT2 t_) /\
-                           transitions q = t_ :: l}} +
-            {final q};
+            match transitions q with
+            | [] => True
+            | t :: _ => maximal_transition t
+            end;
         initial_knowledge : list (term message);
         handles : forall n : nat,
                     func (repeat message (n + length initial_knowledge))
@@ -116,20 +115,19 @@ Section Protocols.
                                 (n + length p.(initial_knowledge))) :=
     (new_input knowledge) t:: inputs.
 
-  Definition new_knowledge p n (q : p.(Q) n) q'
+  Definition new_knowledge p n
              (inputs : tuple (term message) n)
              (knowledge : tuple (term message)
                                 (n + length p.(initial_knowledge)))
-             (t : transition q q') :=
+             (t : p.(transition) n) :=
     t.(output) inputs (new_input knowledge) t:: knowledge.
 
   Definition guard_condition (m : model) p
-             n (q : p.(Q) n)
+             n
              (inputs : tuple (term message) n)
              (knowledge : tuple (term message)
                                 (n + length p.(initial_knowledge)))
-             (t_ : {q' : p.(Q) (S n) & transition q q'}) :=
-    let t := projT2 t_ in
+             (t : p.(transition) n) :=
     m.(interp_term) (t.(guard) inputs (new_input knowledge)) =
     m.(interp_term) (App ftrue h[]).
 
@@ -138,15 +136,14 @@ Section Protocols.
     tuple (term message) (n + length p.(initial_knowledge)) ->
     p.(Q) (S n) -> tuple (term message) (S n) ->
     tuple (term message) (S n + length p.(initial_knowledge)) -> Prop :=
-  | TransValid q inputs knowledge t_ l :
-      let q' := projT1 t_ in
-      let t := projT2 t_ in
+  | TransValid q inputs knowledge t l :
+      let q' := t.(next_state) in
       let new_inputs := new_inputs inputs knowledge in
       let new_knowledge := new_knowledge inputs knowledge t in
       let guard_condition := guard_condition m inputs knowledge in
-      In_with_tail t_ l (transitions q) ->
-      guard_condition t_ ->
-      (forall t'_, In t'_ l -> ~guard_condition t'_) ->
+      In_with_tail t l (transitions q) ->
+      guard_condition t ->
+      (forall t', In t' l -> ~guard_condition t') ->
       transition_valid m q inputs knowledge q' new_inputs new_knowledge.
 
   Lemma valid_transition_unique (m : model) (p : protocol) n
@@ -157,16 +154,16 @@ Section Protocols.
     transition_valid m q inputs knowledge q'2 inputs'2 knowledge'2 ->
     q'1 = q'2 /\ inputs'1 = inputs'2 /\ knowledge'1 = knowledge'2.
     intros V1 V2.
-    inversion_clear V1 as [? ? ? t_1 l1 q'1_ t1 inputs'1_ knowledge'1_
+    inversion_clear V1 as [? ? ? t1 l1 q'1_ inputs'1_ knowledge'1_
                              guard1 Iwt1 HG1 HNG1].
-    inversion_clear V2 as [? ? ? t_2 l2 q'2_ t2 inputs'2_ knowledge'2_
+    inversion_clear V2 as [? ? ? t2 l2 q'2_ inputs'2_ knowledge'2_
                              guard2 Iwt2 HG2 HNG2].
-    subst.
+
     replace guard2 with guard1 in * by reflexivity; clear guard2.
 
-    assert (t_1 = t_2) by
+    assert (t1 = t2) by
         (eapply head_unique_prop with (P := guard1); eassumption).
-    subst t_2.
+    subst t2.
     split; [|split]; reflexivity.
   Qed.
 
@@ -240,12 +237,11 @@ Section Protocols.
     forall x y : m sbool, {x = y} + {x <> y}.
 
   Definition guard_condition_dec m p (mE : model_dec_bool m)
-             n (q : p.(Q) n) inputs knowledge :
-    forall t_ : {q' : p.(Q) (S n) & transition q q'},
-      {guard_condition m inputs knowledge t_} +
-      {~guard_condition m inputs knowledge t_}.
-    intro t_.
-    set (t := projT2 t_).
+             n inputs knowledge :
+    forall t : p.(transition) n,
+      {guard_condition m inputs knowledge t} +
+      {~guard_condition m inputs knowledge t}.
+    intro t.
     set (new_input := new_input knowledge).
     destruct (mE (m.(interp_term) (t.(guard) inputs new_input))
                  (m.(interp_term) (App ftrue h[]))) as [e | ne];
@@ -263,29 +259,29 @@ Section Protocols.
 
     set (new_input := new_input knowledge).
     set (new_inputs := new_inputs inputs knowledge).
-    set (guard_condition := guard_condition m (q:=q) inputs knowledge).
+    set (guard_condition := guard_condition m inputs knowledge).
 
-    destruct (last_prop_dec (guard_condition_dec mE (q:=q) inputs knowledge)
+    destruct (last_prop_dec (guard_condition_dec mE inputs knowledge)
                             (transitions q)) as
-        [[t_ [l [Iwt [nl yt]]]] | no].
+        [[t [l [Iwt [nl yt]]]] | no].
     - left.
-      set (q' := projT1 t_).
-      set (t := projT2 t_).
+      set (q' := t.(next_state)).
       exists q'.
       exists new_inputs.
       set (new_knowledge := new_knowledge inputs knowledge t).
       exists new_knowledge.
       econstructor; eassumption.
     - right.
-      unfold final, final_.
-      destruct (max_transition q) as [[max [l [M el]]] | Fq].
+      hnf.
+      pose proof (max_transition q) as M.
+      destruct (transitions q) as [| t l].
+      + reflexivity.
       + exfalso.
         eapply no.
-        * rewrite el; constructor; reflexivity.
-        * hnf in M |- *.
+        * constructor; reflexivity.
+        * hnf.
           rewrite M.
           reflexivity.
-      + assumption.
   Defined.
 
   Lemma final_machine_impl (m : model) p
