@@ -21,6 +21,28 @@ Fixpoint tnth n A (t : tuple A n) i (H : i < n) : A.
   linear_arithmetic.
 Defined.
 
+Fixpoint tfirstn n A (t : tuple A n) (i : nat) (H : i <= n) : tuple A i.
+  cases i.
+  exact (t[]).
+  cases n.
+  linear_arithmetic. 
+  inversion t.
+  refine (X t:: (tfirstn n A X0 i _)).
+  linear_arithmetic.
+Defined.
+
+Fixpoint tskipn n A (t : tuple A n) (i : nat) : tuple A (n - i)%nat.
+  cases i.
+  assert (n - 0 = n).
+  linear_arithmetic.
+  rewrite H.
+  exact t.
+  cases n.
+  exact t.
+  inversion t.
+  exact (tskipn n A X0 i).
+Defined.
+
 Fixpoint tuple_fold n A B (f : A -> B -> B) (t : tuple A n) (b : B) : B :=
   match t with
     | t[] => b
@@ -40,11 +62,22 @@ Fixpoint tuple_append n m T (t : tuple T n) (t' : tuple T m) :
     | x t:: xs => x t:: (tuple_append xs t')
   end.
 
-Fixpoint list_to_tuple T (l : list T) : tuple T (length l):=
+Fixpoint list2tuple T (l : list T) : tuple T (length l):=
   match l with
     | [] => t[]
-    | x :: xs => x t:: list_to_tuple xs
+    | x :: xs => x t:: list2tuple xs
   end.
+
+Fixpoint tuple2list T n (t : tuple T n) : list T :=
+  match t with
+  | t[] => []
+  | x t:: xs => x :: tuple2list xs
+  end.
+
+Lemma tuple2list_len : forall T n (t : tuple T n), length (tuple2list t) = n.
+Proof.
+  induct t; simplify; equality.
+Qed.
 
 Inductive htuple : forall n : nat, tuple Type n -> Type :=
 | htuple_nil : htuple t[]

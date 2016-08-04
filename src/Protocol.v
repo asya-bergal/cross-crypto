@@ -12,11 +12,6 @@ Require Import CrossCrypto.Tail.
 Require Import CrossCrypto.Execution.
 Require Import Omega.
 
-Fixpoint tuple_to_hlist A (T : A) P n (t : tuple (P T) n)
-: hlist P (repeat T n).
-  induction t; constructor; assumption.
-Defined.
-
 Inductive eq_2 (A : Type) (P : A -> Type) (a a' : A) (p : P a) (p' : P a')
 : Prop :=
 | eq_refl2 : forall (H : a = a'),
@@ -96,7 +91,7 @@ Section Protocols.
                          message
       }.
 
-  Definition initial_knowledge_t p := list_to_tuple p.(initial_knowledge).
+  Definition initial_knowledge_t p := list2tuple p.(initial_knowledge).
 
   Definition machine_state p :=
     {n : nat & p.(Q) n * tuple (term message) n *
@@ -107,7 +102,7 @@ Section Protocols.
   Definition new_input p n
              (knowledge : tuple (term message)
                                 (n + length p.(initial_knowledge))) :=
-    App (p.(handles) n) (tuple_to_hlist knowledge).
+    App (p.(handles) n) (tuple2hlist knowledge).
 
   Definition new_inputs p n
              (inputs : tuple (term message) n)

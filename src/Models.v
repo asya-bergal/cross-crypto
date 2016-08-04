@@ -6,8 +6,9 @@ Import ListNotations.
 
 Section Models.
 
-  (* Finite bound on the number of random values you will need. *)
+  (* Finite bound on the number of random values you and the attacker will need. *)
   Context (rand_bound : nat).
+  Context (arand_bound : nat).
 
 Section SymbolicModel.
 
@@ -22,11 +23,14 @@ Section SymbolicModel.
   | EmptyMsg : SymbolicFunc [] Message
   | Eq : SymbolicFunc (Message :: Message :: []) Bool
   | EqL : SymbolicFunc (Message :: Message :: []) Bool
-  | Name : forall (n : nat), n < rand_bound -> (SymbolicFunc [] Message).
+
+  | Name : forall (n : nat), n < rand_bound -> (SymbolicFunc [] Message)
+  | AName : forall (n : nat), n < arand_bound -> (SymbolicFunc [] Message)
+  | Handle : forall (n : nat) (dom : list SymbolicSort) (cod : SymbolicSort), SymbolicFunc dom cod.
 
   (* Indistinguishability is defined on both messages and booleans *)
   Inductive SymbolicPredicate : list SymbolicSort -> Type :=
-    | Indist : forall (s : SymbolicSort), SymbolicPredicate (s :: s :: []).
+    | Indist : forall (l1 l2 : list SymbolicSort) (H: length l1 = length l2), SymbolicPredicate (l1 ++ l2).
 
 End SymbolicModel.
 
@@ -35,6 +39,7 @@ Require Import Admissibility.
 Require Import Asymptotic.
 Require Import FCF.
 
+Require Import CrossCrypto.CompUtil.
 Require Import CrossCrypto.FrapTactics.
 Require Import CrossCrypto.HList.
 Require Import CrossCrypto.Tuple.
@@ -49,34 +54,22 @@ Section CompInterp.
 
   Definition message := {n : nat & Bvector n}.
   Definition rands (eta : nat) := tuple (Bvector eta) rand_bound.
-  Definition comp (S : Set) := forall (eta : nat), rands eta -> Comp S.
+  Definition arands (eta : nat) := tuple (Bvector eta) arand_bound.
+  Definition comp (S : Set) := forall (eta : nat), rands eta -> arands eta -> Comp S.
 
-  (* TODO : Clean up the following two definitions *)
-  Fixpoint rand_tuple' T {eta : nat} {n : nat} (f : tuple (Bvector eta) n -> Comp T) (i : nat) (_: i < n) {struct i} : tuple (Bvector eta) (n - i) -> Comp T.
-    cases i.
-    assert (n - 0 = n).
-    intuition.
-    rewrite H1.
-    exact f.
-    refine (fun (t : tuple (Bvector eta) (n - S i)) => Bind (Rnd eta) (fun (b : Bvector eta) => (rand_tuple' T eta n f i _ _))).
-    omega.
-    assert (n - i = S (n - S i)).
-    omega.
-    rewrite H1.
-    exact (b t:: t).
+  Definition curry_rands_func T eta (c : rands eta -> arands eta -> Comp T) : tuple (Bvector eta) (rand_bound + arand_bound) -> Comp T.
+    intros.
+    remember (tskipn H0 rand_bound) as arand.
+    assert (rand_bound + arand_bound - rand_bound = arand_bound).
+    linear_arithmetic.
+    clear Heqarand.
+    rewrite H1 in arand.
+    refine (c (tfirstn H0 _) arand).
+    linear_arithmetic.
   Defined.
 
-  Definition rand_tuple T {eta : nat} {n : nat} (f : tuple (Bvector eta) n -> Comp T) : Comp T.
-    cases n.
-    exact (f t[]).
-    refine (Bind (Rnd eta) (fun (b : Bvector eta) => rand_tuple' f _ _)).
-    instantiate (1 := n).
-    omega.
-    assert (S n - n = 1%nat).
-    omega.
-    rewrite H0.
-    exact (b t:: t[]).
-  Defined.
+  Definition bind_rands T eta (c : rands eta -> arands eta -> Comp T) : Comp T :=
+    bind_tuple (curry_rands_func c).
 
   Lemma message_eq_dec : forall (m n : message), {m = n} + {m <> n}.
     intros.
@@ -99,13 +92,13 @@ Section CompInterp.
     mkMessageComp {
         message_comp : comp message;
         message_poly : admissible_oc cost (fun _ => unit) (fun _ => unit) (fun _ => message) (fun (eta : nat) =>
-                                                                                                OC_Ret unit unit (rand_tuple (message_comp eta)))
+                                                                                                OC_Ret unit unit (bind_rands (message_comp eta)))
       }.
 
   Record BoolComp :=
     mkBoolComp {
         bool_comp : comp bool;
-        bool_poly : admissible_oc cost (fun _ => unit) (fun _ => unit) (fun _ => bool) (fun (eta : nat) => OC_Ret unit unit (rand_tuple (bool_comp eta)))
+        bool_poly : admissible_oc cost (fun _ => unit) (fun _ => unit) (fun _ => bool) (fun (eta : nat) => OC_Ret unit unit (bind_rands (bool_comp eta)))
       }.
   Set Implicit Arguments.
 
@@ -119,24 +112,25 @@ Section CompInterp.
     unfold polynomial; exists 0%nat; exists 0%nat; exists 0%nat; unfold expnat; simpl; intros; omega.
 
   Lemma constant_polytime : forall T (eq : eq_dec T) (b : T),
-      admissible_oc cost (fun _ => unit) (fun _ => unit) (fun _ => T) (fun (eta : nat) => OC_Ret unit unit (rand_tuple (fun _ : rands eta => Ret eq b))).
+      admissible_oc cost (fun _ => unit) (fun _ => unit) (fun _ => T) (fun (eta : nat) => OC_Ret unit unit (bind_rands (fun _ : rands eta => fun _ : arands eta => Ret eq b))).
   Admitted.
 
   Definition constant_boolcomp (b : bool) : BoolComp :=
-    mkBoolComp (fun _ => fun _ => Ret bool_dec b) (constant_polytime bool_dec b).
+    mkBoolComp (fun _ _ _ => Ret bool_dec b) (constant_polytime bool_dec b).
 
   Definition constant_messagecomp (m : message) : MessageComp :=
-    mkMessageComp (fun _ => fun _ => Ret message_eq_dec m) (constant_polytime message_eq_dec m).
+    mkMessageComp (fun _ _ _ => Ret message_eq_dec m) (constant_polytime message_eq_dec m).
 
   Definition if_then_else_comp (b : comp bool) (m1 m2 : comp message) : comp message :=
     fun (eta : nat) =>
       fun (r : rands eta) =>
-      b' <-$ (b eta r);
-        (if b' then m1 else m2) eta r.
+        fun (ar : arands eta) =>
+      b' <-$ (b eta r ar);
+        (if b' then m1 else m2) eta r ar.
 
   Definition if_then_else_poly: forall (b : BoolComp) (m1 m2 : MessageComp),
       admissible_oc cost (fun _ : nat => unit) (fun _ : nat => unit) (fun _ : nat => message)
-                    (fun (eta : nat) => $ (rand_tuple ((if_then_else_comp (bool_comp b) (message_comp m1) (message_comp m2)) eta))).
+                    (fun (eta : nat) => $ (bind_rands ((if_then_else_comp (bool_comp b) (message_comp m1) (message_comp m2)) eta))).
   Admitted.
 
   Definition if_then_else_messagecomp (b : BoolComp) (m1 m2 : MessageComp) : MessageComp :=
@@ -167,15 +161,16 @@ Section CompInterp.
   Definition eq_comp (m1 m2 : comp message) : comp bool.
     refine (fun (eta : nat) =>
               fun (r : rands eta) =>
-              m1' <-$ m1 eta r;
-              m2' <-$ m2 eta r;
+                fun (ar : arands eta) =>
+              m1' <-$ m1 eta r ar;
+              m2' <-$ m2 eta r ar;
               ret (m1' ?= m2')).
     apply EqDec_message.
   Defined.
 
   Definition eq_poly: forall (m1 m2 : MessageComp),
       admissible_oc cost (fun _ : nat => unit) (fun _ : nat => unit) (fun _ : nat => bool)
-                    (fun eta : nat => $ (rand_tuple ((eq_comp (message_comp m1) (message_comp m2)) eta))).
+                    (fun eta : nat => $ (bind_rands ((eq_comp (message_comp m1) (message_comp m2)) eta))).
   Admitted.
 
   Definition eq_boolcomp (m1 m2 : MessageComp) : BoolComp :=
@@ -184,8 +179,9 @@ Section CompInterp.
   Definition eql_comp (m1 m2 : comp message) : comp bool.
     refine (fun (eta : nat) =>
               fun (r : rands eta) =>
-              m1' <-$ m1 eta r;
-              m2' <-$ m2 eta r;
+                fun (ar : arands eta) =>
+              m1' <-$ m1 eta r ar;
+              m2' <-$ m2 eta r ar;
               ret _).
     destruct m1'; destruct m2'.
     exact (x ?= x0).
@@ -193,7 +189,7 @@ Section CompInterp.
 
   Definition eql_poly: forall (m1 m2 : MessageComp),
       admissible_oc cost (fun _ : nat => unit) (fun _ : nat => unit) (fun _ : nat => bool)
-                    (fun eta : nat => $ (rand_tuple ((eql_comp (message_comp m1) (message_comp m2)) eta))).
+                    (fun eta : nat => $ (bind_rands ((eql_comp (message_comp m1) (message_comp m2)) eta))).
   Admitted.
 
   Definition eql_boolcomp (m1 m2 : MessageComp) : BoolComp :=
@@ -202,58 +198,70 @@ Section CompInterp.
   Definition name_comp (n : nat) (H' : n < rand_bound) : comp message.
     refine (fun (eta : nat) =>
               fun (r : rands eta) =>
+                fun (ar : arands eta) =>
                 ret (existT Bvector eta (tnth r H'))).
     exact EqDec_message.
   Defined.
 
   Definition name_poly: forall (n : nat) (H' : n < rand_bound),
       admissible_oc cost (fun _ : nat => unit) (fun _ : nat => unit) (fun _ : nat => message)
-                    (fun eta : nat => $ (rand_tuple ((name_comp H') eta))).
+                    (fun eta : nat => $ (bind_rands ((name_comp H') eta))).
   Admitted.
 
   Definition name_messagecomp (n : nat) (H' : n < rand_bound) : MessageComp :=
     mkMessageComp (name_comp H') (name_poly H').
 
-  Axiom TODO : forall {T : Type}, T.
+  (* Axiom TODO : forall {T : Type}, T. *)
 
-  Definition CompInterpFunc dom cod (s : SymbolicFunc dom cod) (h : hlist CompDomain dom) : (CompDomain cod).
-    induction s.
-    (* STrue *)
-    - exact (constant_boolcomp true).
-    (* SFalse *)
-    - exact (constant_boolcomp false).
-    (* IfThenElse *)
-    - refine (if_then_else_messagecomp _ _ _).
-      inversion h.
-      exact X.
-      inversion h.
-      inversion X0.
-      exact X1.
-      inversion h.
-      inversion X0.
-      inversion X2.
-      exact X3.
-    (* EmptyMsg *)
-    - exact (constant_messagecomp (existT Bvector 0 Bnil)%nat).
-    (* Eq *)
-    - refine (eq_boolcomp _ _).
-      inversion h.
-      exact X.
-      inversion h.
-      inversion X0.
-      exact X1.
-    (* EqL *)
-    - refine (eql_boolcomp _ _).
-      inversion h.
-      exact X.
-      inversion h.
-      inversion X0.
-      exact X1.
-    - exact (name_messagecomp l).
-  Defined.
+  (* Definition interp_handles := forall (n : nat) (dom : list SymbolicSort) (cod : SymbolicSort) (h : hlist CompDomain dom), CompDomain cod. *)
 
-(* About Model. *)
-(* Definition CompModel := Model SymbolicSort SymbolicFunc SymbolicState *)
+  (* Definition CompInterpFunc dom cod (s : SymbolicFunc dom cod) (h : hlist CompDomain dom) (ih : interp_handles) : (CompDomain cod). *)
+  (*   induction s. *)
+  (*   (* STrue *) *)
+  (*   - exact (constant_boolcomp true). *)
+  (*   (* SFalse *) *)
+  (*   - exact (constant_boolcomp false). *)
+  (*   (* IfThenElse *) *)
+  (*   - refine (if_then_else_messagecomp _ _ _). *)
+  (*     inversion h. *)
+  (*     exact X. *)
+  (*     inversion h. *)
+  (*     inversion X0. *)
+  (*     exact X1. *)
+  (*     inversion h. *)
+  (*     inversion X0. *)
+  (*     inversion X2. *)
+  (*     exact X3. *)
+  (*   (* EmptyMsg *) *)
+  (*   - exact (constant_messagecomp (existT Bvector 0 Bnil)%nat). *)
+  (*   (* Eq *) *)
+  (*   - refine (eq_boolcomp _ _). *)
+  (*     inversion h. *)
+  (*     exact X. *)
+  (*     inversion h. *)
+  (*     inversion X0. *)
+  (*     exact X1. *)
+  (*   (* EqL *) *)
+  (*   - refine (eql_boolcomp _ _). *)
+  (*     inversion h. *)
+  (*     exact X. *)
+  (*     inversion h. *)
+  (*     inversion X0. *)
+  (*     exact X1. *)
+  (*   (* Name *) *)
+  (*   - exact (name_messagecomp l). *)
+  (*   (* Handle *) *)
+  (*   - exact (ih n dom cod h). *)
+  (* Defined. *)
+
+
+(* Definition indist_comp : bool. *)
+(* Definition indist dom (l1 l2 : hlist CompDomain dom) : Prop. *)
+
+(* Definition CompInterpPredicate dom (s : SymbolicPredicate dom) (h : hlist CompDomain dom) : Prop. *)
+(*   induction s. *)
+(* About model. *)
+(* (* Definition CompModel := Model SymbolicSort SymbolicFunc SymbolicState *) *)
 
 End CompInterp.
 
