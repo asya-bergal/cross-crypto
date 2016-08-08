@@ -1,6 +1,5 @@
 Set Implicit Arguments.
 
-Require Import CrossCrypto.FirstOrder.
 Require Import Coq.Lists.List.
 Import ListNotations.
 
@@ -38,6 +37,7 @@ Require Import Asymptotic.
 Require Import FCF.
 
 Require Import CrossCrypto.CompUtil.
+Require Import CrossCrypto.FirstOrder.
 Require Import CrossCrypto.FrapTactics.
 Require Import CrossCrypto.HList.
 Require Import CrossCrypto.Tuple.

@@ -120,4 +120,3 @@ Ltac inList x xs :=
 
 Require Import Classical.
 Ltac excluded_middle P := destruct (classic P).
-

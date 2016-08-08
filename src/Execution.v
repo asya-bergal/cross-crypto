@@ -1,10 +1,10 @@
 Set Implicit Arguments.
 Unset Strict Implicit.
 
+Require Import Coq.Arith.Arith.
 Require Import Coq.Lists.List.
 Import ListNotations.
 Require Import Coq.Structures.OrderedType.
-Require Import Coq.Arith.Arith.
 Require Import Omega.
 
 Record machine :=
