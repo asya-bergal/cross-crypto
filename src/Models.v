@@ -23,14 +23,12 @@ Section SymbolicModel.
   | EmptyMsg : SymbolicFunc [] Message
   | Eq : SymbolicFunc (Message :: Message :: []) Bool
   | EqL : SymbolicFunc (Message :: Message :: []) Bool
-
   | Name : forall (n : nat), n < rand_bound -> (SymbolicFunc [] Message)
-  | AName : forall (n : nat), n < arand_bound -> (SymbolicFunc [] Message)
   | Handle : forall (n : nat) (dom : list SymbolicSort) (cod : SymbolicSort), SymbolicFunc dom cod.
 
   (* Indistinguishability is defined on both messages and booleans *)
   Inductive SymbolicPredicate : list SymbolicSort -> Type :=
-    | Indist : forall (l1 l2 : list SymbolicSort) (H: length l1 = length l2), SymbolicPredicate (l1 ++ l2).
+    | Indist : forall (l : list SymbolicSort), SymbolicPredicate (l ++ l).
 
 End SymbolicModel.
 
@@ -108,11 +106,15 @@ Section CompInterp.
     | Bool => BoolComp
     end.
 
+  Definition poly_time T (c : comp T) :=
+    admissible_oc cost (fun _ : nat => unit) (fun _ : nat => unit) (fun _ : nat => T)
+                  (fun eta : nat => $ (bind_rands (c eta))).
+
   Ltac trivial_polynomial :=
     unfold polynomial; exists 0%nat; exists 0%nat; exists 0%nat; unfold expnat; simpl; intros; omega.
 
   Lemma constant_polytime : forall T (eq : eq_dec T) (b : T),
-      admissible_oc cost (fun _ => unit) (fun _ => unit) (fun _ => T) (fun (eta : nat) => OC_Ret unit unit (bind_rands (fun _ : rands eta => fun _ : arands eta => Ret eq b))).
+      poly_time (fun eta => (fun _ : rands eta => fun _ : arands eta => Ret eq b)).
   Admitted.
 
   Definition constant_boolcomp (b : bool) : BoolComp :=
@@ -128,9 +130,9 @@ Section CompInterp.
       b' <-$ (b eta r ar);
         (if b' then m1 else m2) eta r ar.
 
+
   Definition if_then_else_poly: forall (b : BoolComp) (m1 m2 : MessageComp),
-      admissible_oc cost (fun _ : nat => unit) (fun _ : nat => unit) (fun _ : nat => message)
-                    (fun (eta : nat) => $ (bind_rands ((if_then_else_comp (bool_comp b) (message_comp m1) (message_comp m2)) eta))).
+      poly_time (if_then_else_comp (bool_comp b) (message_comp m1) (message_comp m2)).
   Admitted.
 
   Definition if_then_else_messagecomp (b : BoolComp) (m1 m2 : MessageComp) : MessageComp :=
@@ -169,8 +171,7 @@ Section CompInterp.
   Defined.
 
   Definition eq_poly: forall (m1 m2 : MessageComp),
-      admissible_oc cost (fun _ : nat => unit) (fun _ : nat => unit) (fun _ : nat => bool)
-                    (fun eta : nat => $ (bind_rands ((eq_comp (message_comp m1) (message_comp m2)) eta))).
+      poly_time (eq_comp (message_comp m1) (message_comp m2)).
   Admitted.
 
   Definition eq_boolcomp (m1 m2 : MessageComp) : BoolComp :=
@@ -188,8 +189,7 @@ Section CompInterp.
   Defined.
 
   Definition eql_poly: forall (m1 m2 : MessageComp),
-      admissible_oc cost (fun _ : nat => unit) (fun _ : nat => unit) (fun _ : nat => bool)
-                    (fun eta : nat => $ (bind_rands ((eql_comp (message_comp m1) (message_comp m2)) eta))).
+      poly_time (eql_comp (message_comp m1) (message_comp m2)).
   Admitted.
 
   Definition eql_boolcomp (m1 m2 : MessageComp) : BoolComp :=
@@ -198,70 +198,107 @@ Section CompInterp.
   Definition name_comp (n : nat) (H' : n < rand_bound) : comp message.
     refine (fun (eta : nat) =>
               fun (r : rands eta) =>
-                fun (ar : arands eta) =>
+                fun (_ : arands eta) =>
                 ret (existT Bvector eta (tnth r H'))).
     exact EqDec_message.
   Defined.
 
   Definition name_poly: forall (n : nat) (H' : n < rand_bound),
-      admissible_oc cost (fun _ : nat => unit) (fun _ : nat => unit) (fun _ : nat => message)
-                    (fun eta : nat => $ (bind_rands ((name_comp H') eta))).
+      poly_time (fun eta => ((name_comp H') eta)).
   Admitted.
 
   Definition name_messagecomp (n : nat) (H' : n < rand_bound) : MessageComp :=
     mkMessageComp (name_comp H') (name_poly H').
 
-  (* Axiom TODO : forall {T : Type}, T. *)
+  Definition arands_only T (c : comp T) :=
+    exists c' : Comp T, c = fun (eta : nat) => fun (_ : rands eta) => fun (ar : arands eta) => c'.
 
-  (* Definition interp_handles := forall (n : nat) (dom : list SymbolicSort) (cod : SymbolicSort) (h : hlist CompDomain dom), CompDomain cod. *)
+  (* Attackers are a generator of computations that are polynomial time and only access attacker randomness. *)
+  Definition attacker := forall (n : nat) T dom (args : hlist CompDomain dom),
+      {c : comp T | poly_time c & arands_only c}.
 
-  (* Definition CompInterpFunc dom cod (s : SymbolicFunc dom cod) (h : hlist CompDomain dom) (ih : interp_handles) : (CompDomain cod). *)
-  (*   induction s. *)
-  (*   (* STrue *) *)
-  (*   - exact (constant_boolcomp true). *)
-  (*   (* SFalse *) *)
-  (*   - exact (constant_boolcomp false). *)
-  (*   (* IfThenElse *) *)
-  (*   - refine (if_then_else_messagecomp _ _ _). *)
-  (*     inversion h. *)
-  (*     exact X. *)
-  (*     inversion h. *)
-  (*     inversion X0. *)
-  (*     exact X1. *)
-  (*     inversion h. *)
-  (*     inversion X0. *)
-  (*     inversion X2. *)
-  (*     exact X3. *)
-  (*   (* EmptyMsg *) *)
-  (*   - exact (constant_messagecomp (existT Bvector 0 Bnil)%nat). *)
-  (*   (* Eq *) *)
-  (*   - refine (eq_boolcomp _ _). *)
-  (*     inversion h. *)
-  (*     exact X. *)
-  (*     inversion h. *)
-  (*     inversion X0. *)
-  (*     exact X1. *)
-  (*   (* EqL *) *)
-  (*   - refine (eql_boolcomp _ _). *)
-  (*     inversion h. *)
-  (*     exact X. *)
-  (*     inversion h. *)
-  (*     inversion X0. *)
-  (*     exact X1. *)
-  (*   (* Name *) *)
-  (*   - exact (name_messagecomp l). *)
-  (*   (* Handle *) *)
-  (*   - exact (ih n dom cod h). *)
-  (* Defined. *)
+  Definition interp_handle dom cod (att : attacker) (n : nat) (args : hlist CompDomain dom) : CompDomain cod :=
+  match cod as s return (CompDomain s) with
+  | Message => let attacker_sig := (sig_of_sig2 (att n message dom args)) in
+      mkMessageComp (proj1_sig attacker_sig) (proj2_sig attacker_sig)
+  | Bool => let attacker_sig := (sig_of_sig2 (att n bool dom args)) in
+      mkBoolComp (proj1_sig attacker_sig) (proj2_sig attacker_sig)
+  end.
 
+  Definition CompInterpFunc (att : attacker) dom cod (f : SymbolicFunc dom cod) (args : hlist CompDomain dom) : (CompDomain cod).
+    induction f.
+    (* STrue *)
+    - exact (constant_boolcomp true).
+    (* SFalse *)
+    - exact (constant_boolcomp false).
+    (* IfThenElse *)
+    - refine (if_then_else_messagecomp _ _ _).
+      inversion args.
+      exact X.
+      inversion args.
+      inversion X0.
+      exact X1.
+      inversion args.
+      inversion X0.
+      inversion X2.
+      exact X3.
+    (* EmptyMsg *)
+    - exact (constant_messagecomp (existT Bvector 0 Bnil)%nat).
+    (* Eq *)
+    - refine (eq_boolcomp _ _).
+      inversion args.
+      exact X.
+      inversion args.
+      inversion X0.
+      exact X1.
+    (* EqL *)
+    - refine (eql_boolcomp _ _).
+      inversion args.
+      exact X.
+      inversion args.
+      inversion X0.
+      exact X1.
+    (* Name *)
+    - exact (name_messagecomp l).
+    (* Handle *)
+    - exact (interp_handle cod att n args).
+  Defined.
 
-(* Definition indist_comp : bool. *)
-(* Definition indist dom (l1 l2 : hlist CompDomain dom) : Prop. *)
+Definition indist_comp := forall dom, hlist CompDomain dom -> comp bool.
 
-(* Definition CompInterpPredicate dom (s : SymbolicPredicate dom) (h : hlist CompDomain dom) : Prop. *)
-(*   induction s. *)
-(* About model. *)
-(* (* Definition CompModel := Model SymbolicSort SymbolicFunc SymbolicState *) *)
+(* TODO: Do we need to somehow bind_rands outside of the probability statement? I don't think so... *)
+Definition indist dom (l1 l2 : hlist CompDomain dom) : Prop :=
+  forall (f : indist_comp), poly_time (f dom l1) 
+                       -> poly_time (f dom l2)
+                       -> arands_only (f dom l1)
+                       -> arands_only (f dom l2)
+                       -> negligible (fun (eta : nat) => (| Pr[bind_rands (f dom l1 eta)] - Pr[bind_rands (f dom l2 eta)]|)).
+
+Lemma firstn_concat : forall A (l : list A) (l' : list A), firstn (length l) (l ++ l') = l.
+  induction l; intros; simplify; equality.
+Qed.
+
+Lemma skipn_concat : forall A (l : list A) (l' : list A), skipn (length l) (l ++ l') = l'.
+  induction l; intros; simplify; equality.
+Qed.
+
+Lemma listdup_split : forall A (l : list A), firstn (length l) (l ++ l) = skipn (length l) (l ++ l).
+  repeat intros.
+  rewrite (firstn_concat l l).
+  rewrite (skipn_concat l l).
+  equality.
+Qed.
+
+Definition CompInterpPredicate dom (p : SymbolicPredicate dom) (args : hlist CompDomain dom) : Prop.
+  induction p.
+  (* assert (firstn (length l) (l ++ l) = skipn (length l) (l ++ l)). *)
+  refine (indist (hfirstn (length l) args) _).
+  rewrite listdup_split.
+  exact (hskipn (length l) args).
+Defined.
+
+Definition CompModel (att : attacker) : model SymbolicFunc SymbolicPredicate :=
+  Model (CompInterpFunc att) CompInterpPredicate.
 
 End CompInterp.
 

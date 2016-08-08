@@ -30,6 +30,26 @@ Definition htail A f (l : list A) (hl : hlist f l) : hlist f (tl l).
   exact X0.
 Defined.
 
+Fixpoint hfirstn (n : nat) A f (l : list A) (hl : hlist f l) : hlist f (firstn n l) :=
+  match n as n' return (hlist f (firstn n' l)) with
+  | 0 => h[]
+  | S n' =>
+      match hl in (hlist _ l') return (hlist f (firstn (S n') l')) with
+      | h[] => h[]
+      | @hcons _ _ x l' f' hl' => f' h:: hfirstn n' hl'
+      end
+  end.
+
+Fixpoint hskipn (n : nat) A f (l : list A) (hl : hlist f l) : hlist f (skipn n l) :=
+  match n as n' return (hlist f (skipn n' l)) with
+  | 0 => hl
+  | S n' =>
+      match hl in (hlist _ l') return (hlist f (skipn (S n') l')) with
+      | h[] => h[]
+      | @hcons _ _ _ l' _ hl' => hskipn n' hl'
+      end
+  end.
+
 Fixpoint list2hlist T (A : T) (f : T -> Type) (fl : list (f A)) : hlist f (repeat A (length fl)).
   cases fl.
   exact (h[]).
