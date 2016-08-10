@@ -275,15 +275,6 @@ Section Models.
       destruct (snd (tnth handles (i:=n) H')); econstructor; exact p.
     Defined.
 
-      (* match (snd (tnth handles H')) as s return (CompDomain s) with *)
-      (* | Message => *)
-      (*   let attacker_sig := sig_of_sig2 (att n H') in *)
-      (*   mkMessageComp (proj2_sig attacker_sig) *)
-      (* | Bool => *)
-      (*   let attacker_sig := sig_of_sig2 (att n H') in *)
-      (*   mkBoolComp (proj2_sig attacker_sig) *)
-      (* end. *)
-
     (* Definition of interpreting a function in our Computational Model,
        parametrized over an attacker who interprets attacker
        functions. The definition is written in proof mode because
@@ -319,11 +310,12 @@ Section Models.
        computation which takes in arguments and returns a bool, there is
        a negligible probability that the attacker gets different
        bools. *)
-    (* FIXME : all inputs *)
+    Definition always_poly (f : bool_func) :=
+      forall dom l, poly_time (f dom l).
+
     Definition indist dom (l1 l2 : hlist CompDomain dom) : Prop :=
       forall (f : bool_func),
-        poly_time (f dom l1)
-        -> poly_time (f dom l2)
+        always_poly f
         -> arands_only (f dom l1)
         -> arands_only (f dom l2)
         -> negligible
