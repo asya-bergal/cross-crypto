@@ -26,12 +26,11 @@ Fixpoint bind_comps (comp_types : list Set) (h : hlist Comp comp_types) T
   exact x.
 Defined.
 
-Definition bind_tuple T {eta : nat} n
-           (f : tuple (Bvector eta) n -> Comp T) : Comp T.
+Definition bind_tuple (T : Set) (T_dec : eq_dec T) {eta : nat} n
+           (f : tuple (Bvector eta) n -> T) : Comp T.
   refine (bind_comps (list2hlist (repeat (Rnd eta) n)) _).
-  refine (fun h => f (hlist2tuple h _ )).
-  assert (length (repeat (Rnd eta) n) = n).
-  apply repeat_length.
+  refine (fun h => Ret T_dec (f (hlist2tuple h _ ))).
+  assert (length (repeat (Rnd eta) n) = n) by apply repeat_length.
   rewrite H.
   equality.
 Defined.
