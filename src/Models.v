@@ -1,4 +1,5 @@
 Set Implicit Arguments.
+Unset Strict Implicit.
 
 Require Import Coq.Lists.List.
 
@@ -69,38 +70,7 @@ Section Models.
     (* A message is a bitvector of any length *)
     Definition message := {n : nat & Bvector n}.
 
-    (* rands and arands are the types of the randomness that the
-       protocol and attacker have access to. They are tuples of exactly
-       the length of the predeclared randomness bound*)
-    Definition rands (eta : nat) := tuple (Bvector eta) rand_bound.
-    Definition arands (eta : nat) := tuple (Bvector eta) arand_bound.
-
-    (* In the paper, Turing machines take as inputs the security
-       parameter, and two tapes containing randomness for the protocol
-       and attacker, and output some value. Accordingly, our "comp" is a
-       function from a security parameter and two sets of randomness to
-       a distribution on some value. *)
-    Definition comp (S : Set) := forall (eta : nat),
-        rands eta -> arands eta -> Comp S.
-
-    (* Utility function *)
-    Definition curry_rands_func T eta (c : rands eta -> arands eta -> Comp T)
-      : tuple (Bvector eta) (rand_bound + arand_bound) -> Comp T.
-      intros t.
-      pose proof (tskipn t rand_bound) as arand.
-      replace (rand_bound + arand_bound - rand_bound) with arand_bound
-        in arand by linear_arithmetic.
-      refine (c (tfirstn t _) arand); linear_arithmetic.
-    Defined.
-
-    (* In order to use random values, we have to bind them in a function
-       that produces a Comp. bind_rands generates random values and
-       binds them to such a funcion and returns a Comp. *)
-    Definition bind_rands T eta (c : rands eta -> arands eta -> Comp T)
-      : Comp T :=
-      bind_tuple (curry_rands_func c).
-
-    (* Equality on messages is decideable *)
+    (* Equality on messages is decidable *)
     Lemma message_eq_dec : forall (m n : message), {m = n} + {m <> n}.
       intros m m'.
       destruct m as [n m]; destruct m' as [n' m'].
@@ -113,23 +83,58 @@ Section Models.
       - right; congruence.
     Defined.
 
+    (* rands and arands are the types of the randomness that the
+       protocol and attacker have access to. They are tuples of exactly
+       the length of the predeclared randomness bound*)
+    Definition rands (eta : nat) := tuple (Bvector eta) rand_bound.
+    Definition arands (eta : nat) := tuple (Bvector eta) arand_bound.
+
+    (* In the paper, Turing machines take as inputs the security
+       parameter, and two tapes containing randomness for the protocol
+       and attacker, and output some value. Accordingly, our "comp" is a
+       function from a security parameter and two sets of randomness to
+       a value. *)
+    Record comp (S : Set) :=
+      mk_comp {S_dec : eq_dec S;
+               comp_fun :> forall eta, rands eta -> arands eta -> S
+              }.
+
+    Definition mk_comp_message f := mk_comp message_eq_dec f.
+    Definition mk_comp_bool f := mk_comp bool_dec f.
+
+    (* Utility function *)
+    Definition curry_rands_func T eta
+               (c : rands eta -> arands eta -> T)
+      : tuple (Bvector eta) (rand_bound + arand_bound) -> T.
+      intros t.
+      pose proof (tskipn t rand_bound) as arand.
+      replace (rand_bound + arand_bound - rand_bound) with arand_bound
+        in arand by linear_arithmetic.
+      refine (c (tfirstn t _) arand); linear_arithmetic.
+    Defined.
+
+    (* In order to use random values, we have to bind them in a function
+       that produces a Comp. bind_rands generates random values and
+       binds them to such a funcion and returns a Comp. *)
+    Definition bind_rands (T : Set) (T_dec : eq_dec T) eta
+               (c : rands eta -> arands eta -> T) : Comp T :=
+      bind_tuple T_dec (curry_rands_func c).
+
+    (* Both domain-types are computations along with proofs that the
+       computations are poly-time. *)
+
     Definition poly_time T (c : comp T) :=
       admissible_oc cost
                     (fun _ : nat => unit)
                     (fun _ : nat => unit)
                     (fun _ : nat => T)
-                    (fun eta : nat => $ (bind_rands (c eta))).
-
-    (* Both domain-types are computations along with proofs that the
-       computations are poly-time. *)
+                    (fun eta : nat => $ (bind_rands c.(S_dec) (c eta))).
 
     Record MessageComp :=
       mkMessageComp {
           message_comp : comp message;
           message_poly : poly_time message_comp
         }.
-
-    Arguments mkMessageComp {message_comp} message_poly.
 
     Record BoolComp :=
       mkBoolComp {
@@ -147,8 +152,8 @@ Section Models.
 
     (* Defining constant functions that just return a constant and their
        poly_time proofs. *)
-    Lemma constant_polytime : forall T (eq : eq_dec T) (b : T),
-        poly_time (fun eta (_ : rands eta) (_ : arands eta) => Ret eq b).
+    Lemma constant_polytime : forall T (T_dec : eq_dec T) (b : T),
+        @poly_time T (mk_comp T_dec (fun _ _ _ => b)).
     Admitted.
 
     Definition constant_boolcomp (b : bool) : BoolComp :=
@@ -160,16 +165,17 @@ Section Models.
     (* Defining several functions and their poly_time proofs. *)
 
     (* If then else *)
-    Definition if_then_else_comp (b : comp bool) (m1 m2 : comp message)
+    Definition if_then_else_comp (b : comp bool)
+               (m1 m2 : comp message)
       : comp message :=
-      fun (eta : nat) (r : rands eta) (ar : arands eta) =>
-        b' <-$ (b eta r ar);
-          (if b' then m1 else m2) eta r ar.
+      mk_comp_message (fun (eta : nat) (r : rands eta) (ar : arands eta) =>
+                         let b' := (b eta r ar) in
+                         (if b' then m1 else m2) eta r ar).
 
-    Definition if_then_else_poly: forall (b : BoolComp) (m1 m2 : MessageComp),
+    Definition if_then_else_poly : forall (b : BoolComp) (m1 m2 : MessageComp),
         poly_time (if_then_else_comp (bool_comp b)
-                                     (message_comp m1)
-                                     (message_comp m2)).
+                                             (message_comp m1)
+                                             (message_comp m2)).
     Admitted.
 
     Definition if_then_else_messagecomp (b : BoolComp) (m1 m2 : MessageComp)
@@ -189,10 +195,11 @@ Section Models.
 
     (* Equality of two messages *)
     Definition eq_comp (m1 m2 : comp message) : comp bool.
-      refine (fun (eta : nat) (r : rands eta) (ar : arands eta) =>
-                m1' <-$ m1 eta r ar;
-                m2' <-$ m2 eta r ar;
-                ret (m1' ?= m2')).
+      refine (mk_comp_bool
+                (fun (eta : nat) (r : rands eta) (ar : arands eta) =>
+                   let m1' := m1 eta r ar in
+                   let m2' := m2 eta r ar in
+                   m1' ?= m2')).
       apply EqDec_message.
     Defined.
 
@@ -205,10 +212,11 @@ Section Models.
 
     (* Equal length between two messages *)
     Definition eql_comp (m1 m2 : comp message) : comp bool.
-      refine (fun (eta : nat) (r : rands eta) (ar : arands eta) =>
-                m1' <-$ m1 eta r ar;
-                m2' <-$ m2 eta r ar;
-                ret _).
+      refine (mk_comp_bool
+                (fun (eta : nat) (r : rands eta) (ar : arands eta) =>
+                   let m1' := m1 eta r ar in
+                   let m2' := m2 eta r ar in
+                   _)).
 
       destruct m1' as [x1 _]; destruct m2' as [x2 _].
       exact (x1 ?= x2).
@@ -223,14 +231,13 @@ Section Models.
 
     (* We interpret a name by pulling out the nth value from the list of
        names that we pass around *)
-    Definition name_comp (n : nat) (H' : n < rand_bound) : comp message.
-      refine (fun (eta : nat) (r : rands eta) (_ : arands eta) =>
-                ret (existT _ eta (tnth r H'))).
-      exact EqDec_message.
-    Defined.
+    Definition name_comp (n : nat) (H' : n < rand_bound) : comp message :=
+      mk_comp_message
+        (fun (eta : nat) (r : rands eta) (_ : arands eta) =>
+           existT _ eta (tnth r H')).
 
-    Definition name_poly: forall (n : nat) (H' : n < rand_bound),
-        poly_time (fun eta => (name_comp H') eta).
+    Definition name_poly : forall (n : nat) (H' : n < rand_bound),
+        poly_time (name_comp H').
     Admitted.
 
     Definition name_messagecomp (n : nat) (H' : n < rand_bound)
@@ -241,12 +248,12 @@ Section Models.
     (* Predicate that says a function uses only the attacker randomness
        passed to it *)
     Definition arands_only T (c : comp T) :=
-      exists c' : forall eta : nat, arands eta -> Comp T,
-        c = fun eta _ ar => c' eta ar.
+      exists T_dec (c' : forall eta : nat, arands eta -> T),
+        c = mk_comp T_dec (fun eta _ ar => c' eta ar).
 
     (* Attackers are a generator of computations that are polynomial
        time and only access attacker randomness. *)
-    Definition attacker := forall (n : nat) T dom
+    Definition attacker := forall (n : nat) T (T_dec : eq_dec T) dom
                                   (args : hlist CompDomain dom),
         {c : comp T | poly_time c & arands_only c}.
 
@@ -255,18 +262,20 @@ Section Models.
     Definition interp_handle dom cod (att : attacker) (n : nat)
                (args : hlist CompDomain dom) : CompDomain cod :=
       match cod with
-      | Message => let attacker_sig := sig_of_sig2 (att n message dom args) in
-                   mkMessageComp (proj2_sig attacker_sig)
-      | Bool => let attacker_sig := (sig_of_sig2 (att n bool dom args)) in
-                mkBoolComp (proj2_sig attacker_sig)
+      | Message =>
+        let attacker_sig := sig_of_sig2
+                              (att n message message_eq_dec dom args) in
+        mkMessageComp (proj2_sig attacker_sig)
+      | Bool =>
+        let attacker_sig := (sig_of_sig2
+                               (att n bool bool_dec dom args)) in
+        mkBoolComp (proj2_sig attacker_sig)
       end.
 
     (* Definition of interpreting a function in our Computational Model,
        parametrized over an attacker who interprets attacker
        functions. The definition is written in proof mode because
        dependent matches are too icky *)
-
-    Print SymbolicFunc.
 
     Definition CompInterpFunc : forall (att : attacker) dom cod
                (f : SymbolicFunc dom cod) (args : hlist CompDomain dom), (CompDomain cod) :=
@@ -296,9 +305,10 @@ Section Models.
         -> poly_time (f dom l2)
         -> arands_only (f dom l1)
         -> arands_only (f dom l2)
-        -> negligible (fun (eta : nat) =>
-                         (| Pr[bind_rands (f dom l1 eta)] -
-                            Pr[bind_rands (f dom l2 eta)]|)).
+        -> negligible
+             (fun (eta : nat) =>
+                (| Pr[bind_rands (f dom l1).(S_dec) (f dom l1 eta)] -
+                   Pr[bind_rands (f dom l2).(S_dec) (f dom l2 eta)]|)).
 
     (* Define the computational interpretation of predicates, which
        right now is only indistinguishability *)
