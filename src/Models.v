@@ -266,9 +266,14 @@ Section Models.
 
     (* To interpet a handle we simply pass the relevant arguments to the
        attacker *)
-    Definition interp_handle (att : attacker) (n : nat) (H' : n < handle_bound) (args : hlist CompDomain (fst (tnth handles H')))
+    Definition interp_handle (att : attacker) (n : nat) (H' : n < handle_bound)
+               (args : hlist CompDomain (fst (tnth handles H')))
       : CompDomain (snd (tnth handles H')).
-    Admitted.
+      unfold attacker in att.
+      destruct (att n H' args) as [x p _].
+      unfold CompDomain.
+      destruct (snd (tnth handles (i:=n) H')); econstructor; exact p.
+    Defined.
 
       (* match (snd (tnth handles H')) as s return (CompDomain s) with *)
       (* | Message => *)
@@ -285,15 +290,24 @@ Section Models.
        dependent matches are too icky *)
 
     Definition CompInterpFunc : forall (att : attacker) dom cod
-               (f : SymbolicFunc dom cod) (args : hlist CompDomain dom), (CompDomain cod) :=
+               (f : SymbolicFunc dom cod) (args : hlist CompDomain dom),
+        (CompDomain cod) :=
       fun (att :attacker) dom cod (f : SymbolicFunc dom cod) =>
-                match f in (SymbolicFunc dom cod) return (hlist CompDomain dom -> CompDomain cod) with
+                match f in (SymbolicFunc dom cod) return
+                      (hlist CompDomain dom -> CompDomain cod) with
                 | STrue => fun _ => constant_boolcomp true
                 | SFalse => fun _ => constant_boolcomp false
-                | IfThenElse => fun args => if_then_else_messagecomp (hhead args) (hhead (htail args)) (hhead (htail (htail args)))
-                | EmptyMsg => fun _ => constant_messagecomp (existT Bvector 0 Bnil)%nat
-                | Eq => fun args => eq_boolcomp (hhead args) (hhead (htail args))
-                | EqL => fun args => eql_boolcomp (hhead args) (hhead (htail args))
+                | IfThenElse =>
+                  fun args =>
+                    if_then_else_messagecomp (hhead args)
+                                             (hhead (htail args))
+                                             (hhead (htail (htail args)))
+                | EmptyMsg =>
+                  fun _ => constant_messagecomp (existT Bvector 0 Bnil)%nat
+                | Eq => fun args =>
+                          eq_boolcomp (hhead args) (hhead (htail args))
+                | EqL => fun args =>
+                           eql_boolcomp (hhead args) (hhead (htail args))
                 | Name H => fun _ => name_messagecomp H
                 | Handle H => fun args => interp_handle att args
                 end.
