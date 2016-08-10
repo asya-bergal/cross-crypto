@@ -16,21 +16,20 @@ Inductive hlist A (f : A -> Type) : list A -> Type :=
 Notation " h[] " := (hnil _).
 Infix "h::" := hcons (at level 60, right associativity).
 
-Definition hhead A f (l : list A) (hl : hlist f l) (H : l <> []) :
-  f (head_with_proof H).
-  inversion hl.
-  congruence.
-  subst l.
-  simpl.
-  exact X.
-Defined.
+Definition hhead A f (l : list A) (hl : hlist f l) : match l return Type with
+                                                     | [] => unit
+                                                     | x :: _ => f x
+                                                     end :=
+  match hl with
+  | h[] => tt
+  | x h:: xs => x
+  end.
 
-Definition htail A f (l : list A) (hl : hlist f l) : hlist f (tl l).
-  cases l.
-  exact h[].
-  inversion hl.
-  exact X0.
-Defined.
+Definition htail A f (l : list A) (hl : hlist f l) : hlist f (tl l) :=
+  match hl with
+  | h[] => h[]
+  | x h:: xs => xs
+  end.
 
 Fixpoint hfirstn (n : nat) A f (l : list A) (hl : hlist f l)
   : hlist f (firstn n l) :=

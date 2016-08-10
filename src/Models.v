@@ -1,7 +1,21 @@
 Set Implicit Arguments.
 
 Require Import Coq.Lists.List.
+
+  Require Import Admissibility.
+  Require Import Asymptotic.
+  Require Import FCF.
+  Require Import WC_PolyTime.
+
+  Require Import CrossCrypto.CompUtil.
+  Require Import CrossCrypto.FirstOrder.
+  Require Import CrossCrypto.FrapTactics.
+  Require Import CrossCrypto.HList.
+  Require Import CrossCrypto.ListUtil.
+  Require Import CrossCrypto.Tuple.
+
 Import ListNotations.
+Open Scope list_scope.
 
 Section Models.
 
@@ -20,13 +34,13 @@ Section Models.
     (* Names are random values that are indexed by a nat *)
     (* Handles are functions of the attacker, also indexed by a nat *)
     Inductive SymbolicFunc : list SymbolicSort -> SymbolicSort -> Type :=
-    | STrue : SymbolicFunc [] Bool
-    | SFalse : SymbolicFunc [] Bool
-    | IfThenElse : SymbolicFunc (Bool :: Message :: Message :: []) Message
-    | EmptyMsg : SymbolicFunc [] Message
-    | Eq : SymbolicFunc (Message :: Message :: []) Bool
-    | EqL : SymbolicFunc (Message :: Message :: []) Bool
-    | Name : forall (n : nat), n < rand_bound -> (SymbolicFunc [] Message)
+    | STrue : SymbolicFunc nil Bool
+    | SFalse : SymbolicFunc nil Bool
+    | IfThenElse : SymbolicFunc (Bool :: Message :: Message :: nil) Message
+    | EmptyMsg : SymbolicFunc nil Message
+    | Eq : SymbolicFunc (Message :: Message :: nil) Bool
+    | EqL : SymbolicFunc (Message :: Message :: nil) Bool
+    | Name : forall (n : nat), n < rand_bound -> (SymbolicFunc nil Message)
     | Handle : forall (n : nat) (dom : list SymbolicSort) (cod : SymbolicSort),
         SymbolicFunc dom cod.
 
@@ -35,18 +49,6 @@ Section Models.
     | Indist : forall (l : list SymbolicSort), SymbolicPredicate (l ++ l).
 
   End SymbolicModel.
-
-  Require Import Admissibility.
-  Require Import Asymptotic.
-  Require Import FCF.
-  Require Import WC_PolyTime.
-
-  Require Import CrossCrypto.CompUtil.
-  Require Import CrossCrypto.FirstOrder.
-  Require Import CrossCrypto.FrapTactics.
-  Require Import CrossCrypto.HList.
-  Require Import CrossCrypto.ListUtil.
-  Require Import CrossCrypto.Tuple.
 
   Section CompInterp.
 
@@ -111,19 +113,20 @@ Section Models.
       - right; congruence.
     Defined.
 
+    Definition poly_time T (c : comp T) :=
+      admissible_oc cost
+                    (fun _ : nat => unit)
+                    (fun _ : nat => unit)
+                    (fun _ : nat => T)
+                    (fun eta : nat => $ (bind_rands (c eta))).
+
     (* Both domain-types are computations along with proofs that the
        computations are poly-time. *)
 
     Record MessageComp :=
       mkMessageComp {
           message_comp : comp message;
-          message_poly :
-            admissible_oc cost
-                          (fun _ => unit)
-                          (fun _ => unit)
-                          (fun _ => message)
-                          (fun (eta : nat) =>
-                             OC_Ret unit unit (bind_rands (@message_comp eta)))
+          message_poly : poly_time message_comp
         }.
 
     Arguments mkMessageComp {message_comp} message_poly.
@@ -131,23 +134,10 @@ Section Models.
     Record BoolComp :=
       mkBoolComp {
           bool_comp : comp bool;
-          bool_poly :
-            admissible_oc cost
-                          (fun _ => unit)
-                          (fun _ => unit)
-                          (fun _ => bool)
-                          (fun (eta : nat) =>
-                             OC_Ret unit unit (bind_rands (@bool_comp eta)))
+          bool_poly : poly_time bool_comp
         }.
 
     Arguments mkBoolComp {bool_comp} bool_poly.
-
-    Definition poly_time T (c : comp T) :=
-      admissible_oc cost
-                    (fun _ : nat => unit)
-                    (fun _ : nat => unit)
-                    (fun _ : nat => T)
-                    (fun eta : nat => $ (bind_rands (c eta))).
 
     Definition CompDomain (s : SymbolicSort) : Type :=
       match s with
@@ -247,6 +237,7 @@ Section Models.
       : MessageComp :=
       mkMessageComp (name_poly H').
 
+    (* FIXME *)
     (* Predicate that says a function uses only the attacker randomness
        passed to it *)
     Definition arands_only T (c : comp T) :=
@@ -263,7 +254,7 @@ Section Models.
        attacker *)
     Definition interp_handle dom cod (att : attacker) (n : nat)
                (args : hlist CompDomain dom) : CompDomain cod :=
-      match cod as s return (CompDomain s) with
+      match cod with
       | Message => let attacker_sig := sig_of_sig2 (att n message dom args) in
                    mkMessageComp (proj2_sig attacker_sig)
       | Bool => let attacker_sig := (sig_of_sig2 (att n bool dom args)) in
@@ -274,34 +265,22 @@ Section Models.
        parametrized over an attacker who interprets attacker
        functions. The definition is written in proof mode because
        dependent matches are too icky *)
-    Definition CompInterpFunc (att : attacker) dom cod
-               (f : SymbolicFunc dom cod) (args : hlist CompDomain dom)
-      : (CompDomain cod).
-      destruct f.
-      (* STrue *)
-      - exact (constant_boolcomp true).
-      (* SFalse *)
-      - exact (constant_boolcomp false).
-      (* IfThenElse *)
-      - inversion_clear args as [| ? ? test args'].
-        inversion_clear args' as [| ? ? true_case args''].
-        inversion_clear args'' as [| ? ? false_case _].
-        exact (if_then_else_messagecomp test true_case false_case).
-      (* EmptyMsg *)
-      - exact (constant_messagecomp (existT Bvector 0 Bnil)%nat).
-      (* Eq *)
-      - inversion_clear args as [| ? ? a args'].
-        inversion_clear args' as [| ? ? b _].
-        exact (eq_boolcomp a b).
-      (* EqL *)
-      - inversion_clear args as [| ? ? a args'].
-        inversion_clear args' as [| ? ? b _].
-        exact (eql_boolcomp a b).
-      (* Name *)
-      - exact (name_messagecomp l).
-      (* Handle *)
-      - exact (interp_handle cod att n args).
-    Defined.
+
+    Print SymbolicFunc.
+
+    Definition CompInterpFunc : forall (att : attacker) dom cod
+               (f : SymbolicFunc dom cod) (args : hlist CompDomain dom), (CompDomain cod) :=
+      fun (att :attacker) dom cod (f : SymbolicFunc dom cod) =>
+                match f in (SymbolicFunc dom cod) return (hlist CompDomain dom -> CompDomain cod) with
+                | STrue => fun _ => constant_boolcomp true
+                | SFalse => fun _ => constant_boolcomp false
+                | IfThenElse => fun args => if_then_else_messagecomp (hhead args) (hhead (htail args)) (hhead (htail (htail args)))
+                | EmptyMsg => fun _ => constant_messagecomp (existT Bvector 0 Bnil)%nat
+                | Eq => fun args => eq_boolcomp (hhead args) (hhead (htail args))
+                | EqL => fun args => eql_boolcomp (hhead args) (hhead (htail args))
+                | Name H => fun _ => name_messagecomp H
+                | Handle n d c => fun args => interp_handle c att n args
+                end.
 
     (* The type of a computation which takes arguments and returns some bool *)
     Definition bool_func := forall dom, hlist CompDomain dom -> comp bool.
@@ -310,6 +289,7 @@ Section Models.
        computation which takes in arguments and returns a bool, there is
        a negligible probability that the attacker gets different
        bools. *)
+    (* FIXME : all inputs *)
     Definition indist dom (l1 l2 : hlist CompDomain dom) : Prop :=
       forall (f : bool_func),
         poly_time (f dom l1)

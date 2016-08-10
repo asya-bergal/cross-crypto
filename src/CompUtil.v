@@ -21,9 +21,8 @@ Fixpoint bind_comps (comp_types : list Set) (h : hlist Comp comp_types) T
   refine (bind_comps comp_types (htail h) T
                      (fun (f' : hlist set2type comp_types) =>
                         Bind _ (fun x => f (_ h:: f')))).
-  refine (hhead h _).
+  refine (hhead h).
   equality.
-  exact x.
 Defined.
 
 Definition bind_tuple T {eta : nat} n
