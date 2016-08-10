@@ -20,36 +20,37 @@ Open Scope list_scope.
 
 Section Models.
 
-  (* Finite bound on the number of random values
-     you and the attacker will need. *)
   Context (rand_bound : nat).
   Context (arand_bound : nat).
 
-  Section SymbolicModel.
+  Inductive SymbolicSort :=
+  | Message : SymbolicSort
+  | Bool : SymbolicSort.
 
-    Inductive SymbolicSort :=
-    | Message : SymbolicSort
-    | Bool : SymbolicSort.
+  (* Finite bound on the number of random values
+     you and the attacker will need. *)
 
-    (* Functions that we are required to define. *)
-    (* Names are random values that are indexed by a nat *)
-    (* Handles are functions of the attacker, also indexed by a nat *)
-    Inductive SymbolicFunc : list SymbolicSort -> SymbolicSort -> Type :=
-    | STrue : SymbolicFunc nil Bool
-    | SFalse : SymbolicFunc nil Bool
-    | IfThenElse : SymbolicFunc (Bool :: Message :: Message :: nil) Message
-    | EmptyMsg : SymbolicFunc nil Message
-    | Eq : SymbolicFunc (Message :: Message :: nil) Bool
-    | EqL : SymbolicFunc (Message :: Message :: nil) Bool
-    | Name : forall (n : nat), n < rand_bound -> (SymbolicFunc nil Message)
-    | Handle : forall (n : nat) (dom : list SymbolicSort) (cod : SymbolicSort),
-        SymbolicFunc dom cod.
+  Context (handle_bound : nat).
+  Context (handles : tuple (list SymbolicSort * SymbolicSort) handle_bound).
 
-    (* Indistinguishability is defined on both messages and booleans *)
-    Inductive SymbolicPredicate : list SymbolicSort -> Type :=
-    | Indist : forall (l : list SymbolicSort), SymbolicPredicate (l ++ l).
+  (* Functions that we are required to define. *)
+  (* Names are random values that are indexed by a nat *)
+  (* Handles are functions of the attacker, also indexed by a nat *)
 
-  End SymbolicModel.
+  Inductive SymbolicFunc : list SymbolicSort -> SymbolicSort -> Type :=
+  | STrue : SymbolicFunc nil Bool
+  | SFalse : SymbolicFunc nil Bool
+  | IfThenElse : SymbolicFunc (Bool :: Message :: Message :: nil) Message
+  | EmptyMsg : SymbolicFunc nil Message
+  | Eq : SymbolicFunc (Message :: Message :: nil) Bool
+  | EqL : SymbolicFunc (Message :: Message :: nil) Bool
+  | Name : forall (n : nat), n < rand_bound -> (SymbolicFunc nil Message)
+  | Handle : forall (n : nat) (H : n < handle_bound),
+      SymbolicFunc (fst (tnth handles H)) (snd (tnth handles H)).
+
+  (* Indistinguishability is defined on both messages and booleans *)
+  Inductive SymbolicPredicate : list SymbolicSort -> Type :=
+  | Indist : forall (l : list SymbolicSort), SymbolicPredicate (l ++ l).
 
   Section CompInterp.
 
@@ -148,6 +149,12 @@ Section Models.
       match s with
       | Message => MessageComp
       | Bool => BoolComp
+      end.
+
+    Definition dom2type (s : SymbolicSort) :=
+      match s with
+      | Message => message
+      | Bool => bool
       end.
 
     (* Defining constant functions that just return a constant and their
@@ -253,24 +260,24 @@ Section Models.
 
     (* Attackers are a generator of computations that are polynomial
        time and only access attacker randomness. *)
-    Definition attacker := forall (n : nat) T (T_dec : eq_dec T) dom
-                                  (args : hlist CompDomain dom),
-        {c : comp T | poly_time c & arands_only c}.
+    Definition attacker := forall (n : nat) (H : n < handle_bound)
+                             (args : hlist CompDomain (fst (tnth handles H))),
+        {c : comp (dom2type (snd (tnth handles H))) | poly_time c & arands_only c}.
 
     (* To interpet a handle we simply pass the relevant arguments to the
        attacker *)
-    Definition interp_handle dom cod (att : attacker) (n : nat)
-               (args : hlist CompDomain dom) : CompDomain cod :=
-      match cod with
-      | Message =>
-        let attacker_sig := sig_of_sig2
-                              (att n message message_eq_dec dom args) in
-        mkMessageComp (proj2_sig attacker_sig)
-      | Bool =>
-        let attacker_sig := (sig_of_sig2
-                               (att n bool bool_dec dom args)) in
-        mkBoolComp (proj2_sig attacker_sig)
-      end.
+    Definition interp_handle (att : attacker) (n : nat) (H' : n < handle_bound) (args : hlist CompDomain (fst (tnth handles H')))
+      : CompDomain (snd (tnth handles H')).
+    Admitted.
+
+      (* match (snd (tnth handles H')) as s return (CompDomain s) with *)
+      (* | Message => *)
+      (*   let attacker_sig := sig_of_sig2 (att n H') in *)
+      (*   mkMessageComp (proj2_sig attacker_sig) *)
+      (* | Bool => *)
+      (*   let attacker_sig := sig_of_sig2 (att n H') in *)
+      (*   mkBoolComp (proj2_sig attacker_sig) *)
+      (* end. *)
 
     (* Definition of interpreting a function in our Computational Model,
        parametrized over an attacker who interprets attacker
@@ -288,7 +295,7 @@ Section Models.
                 | Eq => fun args => eq_boolcomp (hhead args) (hhead (htail args))
                 | EqL => fun args => eql_boolcomp (hhead args) (hhead (htail args))
                 | Name H => fun _ => name_messagecomp H
-                | Handle n d c => fun args => interp_handle c att n args
+                | Handle H => fun args => interp_handle att args
                 end.
 
     (* The type of a computation which takes arguments and returns some bool *)
