@@ -308,6 +308,14 @@ Section Models.
       with a definition that uses dependent types *)
     Definition attacker := prod message_handles bool_handles.
 
+    (* This definition is not awkward, but I can't use it and make *)
+    (* interp_handle go through *)
+    (* Definition attacker := forall (n : nat) (H : n < handle_bound), *)
+    (*     match (snd (tnth handles H)) with *)
+    (*       | Message => message_handle (fst (tnth handles H)) *)
+    (*       | Bool => bool_handle (fst (tnth handles H)) *)
+    (*     end *)
+
     (* Given an attacker and a list of inputs in the domain, *)
     (* compute the output of the attacker *)
     Definition interp_handle (att : attacker) (n : nat) (H' : n < handle_bound)
