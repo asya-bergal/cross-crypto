@@ -133,6 +133,7 @@ Section Models.
                     (fun _ : nat => T)
                     (fun eta : nat => $ (bind_rands c.(S_dec) (c eta))).
 
+
     Record MessageComp :=
       mkMessageComp {
           message_comp : comp message;
@@ -261,42 +262,6 @@ Section Models.
       : MessageComp :=
       mkMessageComp (name_poly H').
 
-    (* FIXME : This doesn't say what it should*)
-    (* Predicate that says a function uses only the attacker randomness
-       passed to it *)
-    Definition arands_only T (c : comp T) :=
-      exists T_dec (c' : forall eta : nat, arands eta -> T),
-        c = mk_comp T_dec (fun eta _ ar => c' eta ar).
-
-
-    (* Attackers are polynomial time if they're polynomial time for every argument *)
-    Definition bool_attacker_poly A (f : forall eta, arands eta -> hlist dom2type A -> bool) : Prop :=
-      forall args : hlist dom2type A, poly_time (mk_comp_bool
-                               (fun (eta : nat) (r : rands eta) (ar : arands eta) =>
-                                  f eta ar args)).
-
-    Definition message_attacker_poly A (f : forall eta, arands eta -> hlist dom2type A -> message) : Prop :=
-      forall args : hlist dom2type A, poly_time (mk_comp_message
-                               (fun (eta : nat) (r : rands eta) (ar : arands eta) =>
-                                  f eta ar args)).
-
-    (* Attackers are a generator of computations that are polynomial
-       time and only access attacker randomness. *)
-    Definition bool_attacker := forall (n : nat) (H : n < handle_bound),
-        { f : forall eta, arands eta ->
-                     hlist dom2type (fst (tnth handles H)) ->
-                    bool |
-          bool_attacker_poly f }.
-    
-    Definition message_attacker := forall (n : nat) (H : n < handle_bound),
-        { f : forall eta, arands eta ->
-                     hlist dom2type (fst (tnth handles H)) ->
-                    message |
-          message_attacker_poly f }.
-    
-    Definition attacker := prod message_attacker bool_attacker.
-
-    (* Get an actual value of some type out of a CompDomain  by passing in arguments for eta and randomness*)
     Definition apply_comp eta (r : rands eta) (ar : arands eta)
                (a : SymbolicSort) (c : CompDomain a) : dom2type a :=
       match a as s return (CompDomain s -> dom2type s) with
@@ -304,38 +269,63 @@ Section Models.
       | Bool => fun c0 : CompDomain Bool => (bool_comp c0) eta r ar
       end c.
 
-    (* Definition apply_bool_comp eta (r : rands eta) (ar : arands eta) (b : BoolComp) := *)
-    (*   (bool_comp b) eta r ar. *)
+    Definition apply_comps eta dom (r : rands eta) (ar : arands eta)
+               (args : hlist CompDomain dom) := hmap' (apply_comp r ar) args.
 
-    (* Definition apply_message_comp eta (r : rands eta) (ar : arands eta) (m : MessageComp) := *)
-    (*   (message_comp m) eta r ar. *)
-    (* To interpret a handle, we create a function that passes arguments to our attacker function and returns the result. We use the attacker_poly in the sigtype to show that the attacker is poly_time*)
+    Definition wrap_handle T A (handle : forall eta, arands eta -> hlist dom2type A -> T)
+               (args : hlist CompDomain A) :=
+      (fun (eta : nat) (r : rands eta) (ar : arands eta) =>
+         handle eta ar (apply_comps r ar args)).
+
+    (* Attackers w/ inputs are polynomial time if they're polynomial time in eta
+       for any inputs that are computed in polynomial time *)
+    Definition bool_handle_poly A
+               (handle : forall eta, arands eta -> hlist dom2type A -> bool) : Prop :=
+      forall args : hlist CompDomain A,
+        poly_time (mk_comp_bool (wrap_handle handle args)).
+
+    Definition message_handle_poly A
+               (handle : forall eta, arands eta -> hlist dom2type A -> message) : Prop :=
+      forall args : hlist CompDomain A,
+        poly_time (mk_comp_message (wrap_handle handle args)).
+
+    (* Attackers are a generator of computations that are polynomial
+       time and only access attacker randomness. *)
+    Definition bool_handle (dom : list SymbolicSort) :=
+      { f : forall eta, arands eta -> hlist dom2type dom -> bool |
+        bool_handle_poly f }.
+
+    Definition message_handle (dom : list SymbolicSort) := 
+      { f : forall eta, arands eta -> hlist dom2type dom -> message |
+        message_handle_poly f }.
+
+    Definition bool_handles := forall (n : nat) (H : n < handle_bound),
+        bool_handle (fst (tnth handles H)).
+    Definition message_handles := forall (n : nat) (H : n < handle_bound),
+        message_handle (fst (tnth handles H)).
+
+    (* This definition is awkward, but I can't make interp_handle go through
+      with a definition that uses dependent types *)
+    Definition attacker := prod message_handles bool_handles.
+
+    (* Given an attacker and a list of inputs in the domain, *)
+    (* compute the output of the attacker *)
     Definition interp_handle (att : attacker) (n : nat) (H' : n < handle_bound)
                (args : hlist CompDomain (fst (tnth handles H')))
       : CompDomain (snd (tnth handles H')).
+      remember (fst att n H') as message_attack.
+      remember (snd att n H') as bool_attack.
       cases (snd (tnth handles H')); econstructor.
       Unshelve.
       Focus 3.
-      remember (fst att n H') as attack; clear Heqattack.
-      econstructor; simplify; unfold eq_dec; auto.
-      exact (proj1_sig attack eta H1 (hmap' (apply_comp H0 H1) args)).
-      remember (fst att n H') as attack; clear Heqattack; simplify.
-      destruct attack.
-      simplify.
-      unfold message_attacker_poly in m.
-      unfold mk_comp_message in m.
-      refine (m _).
-
-      (* refine (m _). *)
-
-      (* remember (att n H') as attack. *)
-
-      (* clear Heqattack. *)
-      (* assert (dom2type (snd (tnth handles (i:=n) H')) = message). *)
-      (* rewrite Heq. *)
-      (* equality. *)
-      (* generalize message_eq_dec; change message with (dom2type Message). *)
-      (* replace <- Message. *)
+      - econstructor; simplify; unfold eq_dec; auto.
+        exact (proj1_sig message_attack eta H1 (apply_comps H0 H1 args)).
+        destruct message_attack as [? poly]; eauto.
+        Focus 2.
+      - econstructor; simplify; unfold eq_dec; auto.
+        exact (proj1_sig bool_attack eta H1 (apply_comps H0 H1 args)).
+        destruct bool_attack as [? poly]; eauto.
+    Defined.
 
     (* Definition of interpreting a function in our Computational Model,
        parametrized over an attacker who interprets attacker
@@ -364,21 +354,14 @@ Section Models.
                 | Handle H => fun args => interp_handle att args
                 end.
 
-    (* The type of a computation which takes arguments and returns some bool *)
-    Definition bool_func := forall dom, hlist CompDomain dom -> Comp bool.
-
-    Definition always_poly dom (f : bool_func) :=
-      forall (l : dom) , poly_time (f dom l).
-
     Definition indist dom (l1 l2 : hlist CompDomain dom) : Prop :=
-      forall (f : bool_func),
-        always_poly f
-        -> arands_only (f dom l1)
-        -> arands_only (f dom l2)
-        -> negligible
-             (fun (eta : nat) =>
-                (| Pr[bind_rands (f dom l1).(S_dec) (f dom l1 eta)] -
-                   Pr[bind_rands (f dom l2).(S_dec) (f dom l2 eta)]|)).
+      forall (f : bool_handle dom),
+        negligible
+          (fun (eta : nat) =>
+             (| Pr[bind_rands bool_dec (fun (r : rands eta) (ar : arands eta) =>
+                          proj1_sig f eta ar (apply_comps r ar l1))] -
+                Pr[bind_rands bool_dec (fun (r : rands eta) (ar : arands eta) =>
+                          proj1_sig f eta ar (apply_comps r ar l2))] | )).
 
     (* Define the computational interpretation of predicates, which
        right now is only indistinguishability *)
