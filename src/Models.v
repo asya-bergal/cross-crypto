@@ -84,6 +84,8 @@ Section Models.
       - right; congruence.
     Defined.
 
+    Hint Resolve message_eq_dec.
+    Hint Resolve bool_dec.
     (* rands and arands are the types of the randomness that the
        protocol and attacker have access to. They are tuples of exactly
        the length of the predeclared randomness bound*)
@@ -155,6 +157,14 @@ Section Models.
       match s with
       | Message => message
       | Bool => bool
+      end.
+
+    Definition dom2mk_comp (dom : SymbolicSort) : (forall eta : nat, rands eta -> arands eta -> dom2type dom) -> comp (dom2type dom) :=
+      match
+        dom as s return ((forall eta : nat, rands eta -> arands eta -> dom2type s) -> comp (dom2type s))
+      with
+      | Message => mk_comp_message
+      | Bool => mk_comp_bool
       end.
 
     (* Defining constant functions that just return a constant and their
@@ -251,35 +261,60 @@ Section Models.
       : MessageComp :=
       mkMessageComp (name_poly H').
 
-    (* FIXME *)
+    (* FIXME : This doesn't say what it should*)
     (* Predicate that says a function uses only the attacker randomness
        passed to it *)
     Definition arands_only T (c : comp T) :=
       exists T_dec (c' : forall eta : nat, arands eta -> T),
         c = mk_comp T_dec (fun eta _ ar => c' eta ar).
 
+
+    (* Attackers are polynomial time if they're polynomial time for every argument *)
+    Definition attacker_poly T A (f : forall eta, arands eta -> A -> dom2type (T)) : Prop :=
+      forall args : A, poly_time (dom2mk_comp
+                               (fun (eta : nat) (r : rands eta) (ar : arands eta) =>
+                                  f eta ar args)).
+
     (* Attackers are a generator of computations that are polynomial
        time and only access attacker randomness. *)
-    Definition attacker := forall (n : nat) (H : n < handle_bound)
-                             (args : hlist CompDomain (fst (tnth handles H))),
-        {c : comp (dom2type (snd (tnth handles H))) | poly_time c & arands_only c}.
-
-    (* To interpet a handle we simply pass the relevant arguments to the
-       attacker *)
+    Definition attacker := forall (n : nat) (H : n < handle_bound),
+        { f : forall eta, arands eta ->
+                     hlist dom2type (fst (tnth handles H)) ->
+                     dom2type (snd (tnth handles H)) |
+          attacker_poly f }.
+    
+    (* Get an actual value of some type out of a CompDomain  by passing in arguments for eta and randomness*)
+    Definition apply_comp eta (r : rands eta) (ar : arands eta)
+               (a : SymbolicSort) (c : CompDomain a) : dom2type a :=
+      match a as s return (CompDomain s -> dom2type s) with
+      | Message => fun c0 : CompDomain Message => (message_comp c0) eta r ar
+      | Bool => fun c0 : CompDomain Bool => (bool_comp c0) eta r ar
+      end c.
+      
+    (* To interpret a handle, we create a function that passes arguments to our attacker function and returns the result. We use the attacker_poly in the sigtype to show that the attacker is poly_time*)
     Definition interp_handle (att : attacker) (n : nat) (H' : n < handle_bound)
                (args : hlist CompDomain (fst (tnth handles H')))
       : CompDomain (snd (tnth handles H')).
-      unfold attacker in att.
-      destruct (att n H' args) as [x p _].
-      unfold CompDomain.
-      destruct (snd (tnth handles (i:=n) H')); econstructor; exact p.
-    Defined.
+      cases (snd (tnth handles H')); econstructor.
+      Unshelve.
+      Focus 3.
+      remember (att n H') as attack; clear Heqattack; rewrite Heq in attack.
+      econstructor; simplify; unfold eq_dec; auto.
+      exact (proj1_sig attack eta H1 (hmap' (apply_comp H0 H1) args)).
+      simplify.
+
+      remember (att n H') as attack.
+
+      clear Heqattack.
+      assert (dom2type (snd (tnth handles (i:=n) H')) = message).
+      rewrite Heq.
+      equality.
+      replace <- Message.
 
     (* Definition of interpreting a function in our Computational Model,
        parametrized over an attacker who interprets attacker
        functions. The definition is written in proof mode because
        dependent matches are too icky *)
-
     Definition CompInterpFunc : forall (att : attacker) dom cod
                (f : SymbolicFunc dom cod) (args : hlist CompDomain dom),
         (CompDomain cod) :=
@@ -304,14 +339,10 @@ Section Models.
                 end.
 
     (* The type of a computation which takes arguments and returns some bool *)
-    Definition bool_func := forall dom, hlist CompDomain dom -> comp bool.
+    Definition bool_func := forall dom, hlist CompDomain dom -> Comp bool.
 
-    (* Two hlists are indistinguishable if for any poly-time attacker
-       computation which takes in arguments and returns a bool, there is
-       a negligible probability that the attacker gets different
-       bools. *)
-    Definition always_poly (f : bool_func) :=
-      forall dom l, poly_time (f dom l).
+    Definition always_poly dom (f : bool_func) :=
+      forall (l : dom) , poly_time (f dom l).
 
     Definition indist dom (l1 l2 : hlist CompDomain dom) : Prop :=
       forall (f : bool_func),
