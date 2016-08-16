@@ -3,17 +3,17 @@ Unset Strict Implicit.
 
 Require Import Coq.Lists.List.
 
-  Require Import Admissibility.
-  Require Import Asymptotic.
-  Require Import FCF.
-  Require Import WC_PolyTime.
+Require Import Admissibility.
+Require Import Asymptotic.
+Require Import FCF.
+Require Import WC_PolyTime.
 
-  Require Import CrossCrypto.CompUtil.
-  Require Import CrossCrypto.FirstOrder.
-  Require Import CrossCrypto.FrapTactics.
-  Require Import CrossCrypto.HList.
-  Require Import CrossCrypto.ListUtil.
-  Require Import CrossCrypto.Tuple.
+Require Import CrossCrypto.CompUtil.
+Require Import CrossCrypto.FirstOrder.
+Require Import CrossCrypto.FrapTactics.
+Require Import CrossCrypto.HList.
+Require Import CrossCrypto.ListUtil.
+Require Import CrossCrypto.Tuple.
 
 Import ListNotations.
 Open Scope list_scope.
@@ -160,14 +160,6 @@ Section Models.
       | Bool => bool
       end.
 
-    (* Definition dom2mk_comp (dom : SymbolicSort) : (forall eta : nat, rands eta -> arands eta -> dom2type dom) -> comp (dom2type dom) := *)
-    (*   match *)
-    (*     dom as s return ((forall eta : nat, rands eta -> arands eta -> dom2type s) -> comp (dom2type s)) *)
-    (*   with *)
-    (*   | Message => mk_comp_message *)
-    (*   | Bool => mk_comp_bool *)
-    (*   end. *)
-
     (* Defining constant functions that just return a constant and their
        poly_time proofs. *)
     Lemma constant_polytime : forall T (T_dec : eq_dec T) (b : T),
@@ -192,8 +184,8 @@ Section Models.
 
     Definition if_then_else_poly : forall (b : BoolComp) (m1 m2 : MessageComp),
         poly_time (if_then_else_comp (bool_comp b)
-                                             (message_comp m1)
-                                             (message_comp m2)).
+                                     (message_comp m1)
+                                     (message_comp m2)).
     Admitted.
 
     Definition if_then_else_messagecomp (b : BoolComp) (m1 m2 : MessageComp)
@@ -272,20 +264,23 @@ Section Models.
     Definition apply_comps eta dom (r : rands eta) (ar : arands eta)
                (args : hlist CompDomain dom) := hmap' (apply_comp r ar) args.
 
-    Definition wrap_handle T A (handle : forall eta, arands eta -> hlist dom2type A -> T)
+    Definition wrap_handle T A (handle : forall eta, arands eta ->
+                                                     hlist dom2type A -> T)
                (args : hlist CompDomain A) :=
       (fun (eta : nat) (r : rands eta) (ar : arands eta) =>
          handle eta ar (apply_comps r ar args)).
 
-    (* Attackers w/ inputs are polynomial time if they're polynomial time in eta
-       for any inputs that are computed in polynomial time *)
+    (* Attackers w/ inputs are polynomial time if they're polynomial
+       time in eta for any inputs that are computed in polynomial time *)
     Definition bool_handle_poly A
-               (handle : forall eta, arands eta -> hlist dom2type A -> bool) : Prop :=
+               (handle : forall eta, arands eta -> hlist dom2type A -> bool)
+      : Prop :=
       forall args : hlist CompDomain A,
         poly_time (mk_comp_bool (wrap_handle handle args)).
 
     Definition message_handle_poly A
-               (handle : forall eta, arands eta -> hlist dom2type A -> message) : Prop :=
+               (handle : forall eta, arands eta -> hlist dom2type A -> message)
+      : Prop :=
       forall args : hlist CompDomain A,
         poly_time (mk_comp_message (wrap_handle handle args)).
 
@@ -295,81 +290,82 @@ Section Models.
       { f : forall eta, arands eta -> hlist dom2type dom -> bool |
         bool_handle_poly f }.
 
-    Definition message_handle (dom : list SymbolicSort) := 
+    Definition message_handle (dom : list SymbolicSort) :=
       { f : forall eta, arands eta -> hlist dom2type dom -> message |
         message_handle_poly f }.
 
-    Definition bool_handles := forall (n : nat) (H : n < handle_bound),
-        bool_handle (fst (tnth handles H)).
-    Definition message_handles := forall (n : nat) (H : n < handle_bound),
-        message_handle (fst (tnth handles H)).
-
-    (* This definition is awkward, but I can't make interp_handle go through
-      with a definition that uses dependent types *)
-    Definition attacker := prod message_handles bool_handles.
-
-    (* This definition is not awkward, but I can't use it and make *)
-    (* interp_handle go through *)
-    (* Definition attacker := forall (n : nat) (H : n < handle_bound), *)
-    (*     match (snd (tnth handles H)) with *)
-    (*       | Message => message_handle (fst (tnth handles H)) *)
-    (*       | Bool => bool_handle (fst (tnth handles H)) *)
-    (*     end *)
+    Definition attacker := forall (n : nat) (H : n < handle_bound),
+        match (snd (tnth handles H)) with
+        | Message => message_handle (fst (tnth handles H))
+        | Bool => bool_handle (fst (tnth handles H))
+        end.
 
     (* Given an attacker and a list of inputs in the domain, *)
     (* compute the output of the attacker *)
     Definition interp_handle (att : attacker) (n : nat) (H' : n < handle_bound)
                (args : hlist CompDomain (fst (tnth handles H')))
       : CompDomain (snd (tnth handles H')).
-      remember (fst att n H') as message_attack.
-      remember (snd att n H') as bool_attack.
-      cases (snd (tnth handles H')); econstructor.
-      Unshelve.
-      Focus 3.
-      - econstructor; simplify; unfold eq_dec; auto.
-        exact (proj1_sig message_attack eta H1 (apply_comps H0 H1 args)).
-        destruct message_attack as [? poly]; eauto.
-        Focus 2.
-      - econstructor; simplify; unfold eq_dec; auto.
-        exact (proj1_sig bool_attack eta H1 (apply_comps H0 H1 args)).
-        destruct bool_attack as [? poly]; eauto.
+      hnf in att.
+      specialize (att n H').
+      destruct (snd (tnth handles H')).
+      - destruct att as [c p].
+        simple refine (@mkMessageComp _ _).
+        + econstructor.
+          * exact message_eq_dec.
+          * intros; eapply c.
+            -- eassumption.
+            -- eapply apply_comps; eassumption.
+        + apply p.
+      - destruct att as [c p].
+        simple refine (@mkBoolComp _ _).
+        + econstructor.
+          * exact bool_dec.
+          * intros; eapply c.
+            -- eassumption.
+            -- eapply apply_comps; eassumption.
+        + apply p.
     Defined.
 
     (* Definition of interpreting a function in our Computational Model,
        parametrized over an attacker who interprets attacker
        functions. The definition is written in proof mode because
        dependent matches are too icky *)
-    Definition CompInterpFunc : forall (att : attacker) dom cod
-               (f : SymbolicFunc dom cod) (args : hlist CompDomain dom),
+    Definition CompInterpFunc :
+      forall (att : attacker) dom cod
+             (f : SymbolicFunc dom cod) (args : hlist CompDomain dom),
         (CompDomain cod) :=
       fun (att :attacker) dom cod (f : SymbolicFunc dom cod) =>
-                match f in (SymbolicFunc dom cod) return
-                      (hlist CompDomain dom -> CompDomain cod) with
-                | STrue => fun _ => constant_boolcomp true
-                | SFalse => fun _ => constant_boolcomp false
-                | IfThenElse =>
-                  fun args =>
-                    if_then_else_messagecomp (hhead args)
-                                             (hhead (htail args))
-                                             (hhead (htail (htail args)))
-                | EmptyMsg =>
-                  fun _ => constant_messagecomp (existT Bvector 0 Bnil)%nat
-                | Eq => fun args =>
-                          eq_boolcomp (hhead args) (hhead (htail args))
-                | EqL => fun args =>
-                           eql_boolcomp (hhead args) (hhead (htail args))
-                | Name H => fun _ => name_messagecomp H
-                | Handle H => fun args => interp_handle att args
-                end.
+        match f in (SymbolicFunc dom cod) return
+              (hlist CompDomain dom -> CompDomain cod) with
+        | STrue => fun _ => constant_boolcomp true
+        | SFalse => fun _ => constant_boolcomp false
+        | IfThenElse =>
+          fun args =>
+            if_then_else_messagecomp (hhead args)
+                                     (hhead (htail args))
+                                     (hhead (htail (htail args)))
+        | EmptyMsg =>
+          fun _ => constant_messagecomp (existT Bvector 0 Bnil)%nat
+        | Eq => fun args =>
+                  eq_boolcomp (hhead args) (hhead (htail args))
+        | EqL => fun args =>
+                   eql_boolcomp (hhead args) (hhead (htail args))
+        | Name H => fun _ => name_messagecomp H
+        | Handle H => fun args => interp_handle att args
+        end.
 
     Definition indist dom (l1 l2 : hlist CompDomain dom) : Prop :=
       forall (f : bool_handle dom),
         negligible
           (fun (eta : nat) =>
-             (| Pr[bind_rands bool_dec (fun (r : rands eta) (ar : arands eta) =>
-                          proj1_sig f eta ar (apply_comps r ar l1))] -
-                Pr[bind_rands bool_dec (fun (r : rands eta) (ar : arands eta) =>
-                          proj1_sig f eta ar (apply_comps r ar l2))] | )).
+             (| Pr[bind_rands
+                     bool_dec
+                     (fun (r : rands eta) (ar : arands eta) =>
+                        proj1_sig f eta ar (apply_comps r ar l1))] -
+                Pr[bind_rands
+                     bool_dec
+                     (fun (r : rands eta) (ar : arands eta) =>
+                        proj1_sig f eta ar (apply_comps r ar l2))] |)).
 
     (* Define the computational interpretation of predicates, which
        right now is only indistinguishability *)
