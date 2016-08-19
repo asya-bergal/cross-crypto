@@ -127,12 +127,9 @@ Section Models.
        computations are poly-time. *)
 
     Definition poly_time T (c : comp T) :=
-      admissible_oc cost
-                    (fun _ : nat => unit)
-                    (fun _ : nat => unit)
-                    (fun _ : nat => T)
-                    (fun eta : nat => $ (bind_rands c.(S_dec) (c eta))).
-
+      exists (f : nat -> nat), 
+          polynomial (fun n => f n) /\
+        forall n, comp_cost cost (bind_rands c.(S_dec) (c n)) (f n).
 
     Record MessageComp :=
       mkMessageComp {
