@@ -126,6 +126,11 @@ Section Models.
     (* Both domain-types are computations along with proofs that the
        computations are poly-time. *)
 
+    (* Definition poly_time (A B : nat -> Type) (f : forall (eta : nat), A eta -> B eta) := *)
+    (*   exists (f' : nat -> nat), *)
+    (*     polynomial f' /\ *)
+    (*     forall n, cost (f n) (f' n). *)
+                
     Definition poly_time T (c : comp T) :=
       exists (f : nat -> nat), 
           polynomial f /\
