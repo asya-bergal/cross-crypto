@@ -128,7 +128,7 @@ Section Models.
 
     Definition poly_time T (c : comp T) :=
       exists (f : nat -> nat), 
-          polynomial (fun n => f n) /\
+          polynomial f /\
         forall n, comp_cost cost (bind_rands c.(S_dec) (c n)) (f n).
 
     Record MessageComp :=
