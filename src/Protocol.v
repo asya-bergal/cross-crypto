@@ -18,26 +18,13 @@ Section Protocols.
           (func : list sort -> sort -> Type)
           (predicate : list sort -> Type)
           (sbool : sort)
-          (message : sort)
-          (ite : func (sbool :: message :: message :: []) message)
+          (smessage : sort)
+          (ite : func (sbool :: smessage :: smessage :: []) smessage)
           (ftrue : func [] sbool)
           (ffalse : func [] sbool)
-          (empty_message : func [] message)
-          (eq_test : func (message :: message :: []) sbool)
-          (equiv : forall (ss : list sort), predicate (ss ++ ss)).
-
-  Notation "'term'" := (term func).
-  Notation "'model'" := (model func predicate).
-
-  Section Protocol.
-
-    Variable Q : nat -> Type.
-    Variable q0 : Q 0.
-
-    Record transition_ n :=
-      mkTransition {
-          output : tuple (term message) n -> term message -> term message;
-          guard : tuple (term message) n -> term message -> term sbool;
+          (empty_smessage : func [] smessage)
+          output : tuple (term smessage) n -> term smessage -> term smessage;
+          guard : tuple (term smessage) n -> term smessage -> term sbool;
           next_state : Q (S n)
         }.
 
@@ -46,7 +33,7 @@ Section Protocols.
     Definition final_ n (q : Q n) : Prop := transitions q = [].
 
     Definition maximal_transition_ n (t : transition_ n) : Prop :=
-      forall (is : tuple (term message) n) (i : term message),
+      forall (is : tuple (term smessage) n) (i : term smessage),
         t.(guard) is i = App ftrue h[].
 
   End Protocol.
@@ -67,52 +54,52 @@ Section Protocols.
             | [] => True
             | t :: _ => maximal_transition t
             end;
-        initial_knowledge : list (term message);
+        initial_knowledge : list (term smessage);
         handles : forall n : nat,
-                    func (repeat message (n + length initial_knowledge))
-                         message
+                    func (repeat smessage (n + length initial_knowledge))
+                         smessage
       }.
 
   Definition initial_knowledge_t p := list2tuple p.(initial_knowledge).
 
   Definition machine_state p :=
-    {n : nat & p.(Q) n * tuple (term message) n *
-               tuple (term message) (n + length p.(initial_knowledge))}%type.
+    {n : nat & p.(Q) n * tuple (term smessage) n *
+               tuple (term smessage) (n + length p.(initial_knowledge))}%type.
   Definition machine_initial p : machine_state p :=
     existT _ 0 (q0 p, t[], initial_knowledge_t p).
 
   Definition new_input p n
-             (knowledge : tuple (term message)
+             (knowledge : tuple (term smessage)
                                 (n + length p.(initial_knowledge))) :=
     App (p.(handles) n) (tuple2hlist knowledge).
 
   Definition new_inputs p n
-             (inputs : tuple (term message) n)
-             (knowledge : tuple (term message)
+             (inputs : tuple (term smessage) n)
+             (knowledge : tuple (term smessage)
                                 (n + length p.(initial_knowledge))) :=
     (new_input knowledge) t:: inputs.
 
   Definition new_knowledge p n
-             (inputs : tuple (term message) n)
-             (knowledge : tuple (term message)
+             (inputs : tuple (term smessage) n)
+             (knowledge : tuple (term smessage)
                                 (n + length p.(initial_knowledge)))
              (t : p.(transition) n) :=
     t.(output) inputs (new_input knowledge) t:: knowledge.
 
   Definition guard_condition (m : model) p
              n
-             (inputs : tuple (term message) n)
-             (knowledge : tuple (term message)
+             (inputs : tuple (term smessage) n)
+             (knowledge : tuple (term smessage)
                                 (n + length p.(initial_knowledge)))
              (t : p.(transition) n) :=
     m.(interp_term) (t.(guard) inputs (new_input knowledge)) =
     m.(interp_term) (App ftrue h[]).
 
   Inductive transition_valid (m : model) (p : protocol) n :
-    p.(Q) n -> tuple (term message) n ->
-    tuple (term message) (n + length p.(initial_knowledge)) ->
-    p.(Q) (S n) -> tuple (term message) (S n) ->
-    tuple (term message) (S n + length p.(initial_knowledge)) -> Prop :=
+    p.(Q) n -> tuple (term smessage) n ->
+    tuple (term smessage) (n + length p.(initial_knowledge)) ->
+    p.(Q) (S n) -> tuple (term smessage) (S n) ->
+    tuple (term smessage) (S n + length p.(initial_knowledge)) -> Prop :=
   | TransValid q inputs knowledge t l :
       let q' := t.(next_state) in
       let new_inputs := new_inputs inputs knowledge in
