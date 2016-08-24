@@ -143,11 +143,11 @@ Section Models.
       { f : forall eta, arands eta -> hlist CompDomain dom -> message |
         message_handle_poly f }.
 
-    Definition attacker := forall (n : nat) (H : n < handle_bound),
+    Definition attacker := prod (forall (n : nat) (H : n < handle_bound),
         match (snd (tnth handles H)) with
         | Message => message_handle (fst (tnth handles H))
         | Bool => bool_handle (fst (tnth handles H))
-        end * forall (trace : list SymbolicSort), bool_handle trace.
+        end) (forall (trace : list SymbolicSort), bool_handle trace).
 
     (* TODO : Rewrite this prettier, split out cases *)
     Definition CompInterpFunc eta (r : rands eta) (ar : arands eta)
@@ -172,11 +172,11 @@ Section Models.
       cases (snd (tnth handles (i:=n) H0));
         simplify;
         refine ((proj1_sig _) _ _ _);
-        pose proof (att n H0) as attack;
+        pose proof (fst att n H0) as attack;
         rewrite Heq in attack.
-      exact (fst attack).
+      exact attack.
       exact args.
-      exact (fst attack).
+      exact attack.
       exact args.
       Unshelve.
       exact eta.
@@ -220,10 +220,11 @@ Section Models.
       exact (tuple2list H1).
     Defined.
 
-    Definition indist (att : attacker) (attack : forall (trace : list SymbolicSort), bool_handle trace) (p1 p2 : CompProtocol): Prop.
+    Definition indist (att : attacker) (p1 p2 : CompProtocol): Prop.
+      Admitted.
     (*   refine (negligible (fun (eta : nat) => (|Pr[bind_rands bool_dec _] - Pr[bind_rands bool_dec _]|))). *)
     (*   - refine (fun (r : rands eta) (ar : arands eta) => _). *)
-    (*     refine (proj1_sig (attack _) _ _ _). *)
+    (*     refine (proj1_sig ((snd att) _) _ _ _). *)
     (*     exact ar. *)
     (*     simple refine (let fixed_model : model SymbolicFunc SymbolicPredicate := _ in _). *)
     (*     refine (Model _ _). *)
