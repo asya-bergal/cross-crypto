@@ -23,6 +23,19 @@ Section Protocols.
           (ftrue : func [] sbool)
           (ffalse : func [] sbool)
           (empty_smessage : func [] smessage)
+          (eq_test : func (smessage :: smessage :: []) sbool)
+          (equiv : forall (ss : list sort), predicate (ss ++ ss)).
+
+  Notation "'term'" := (term func).
+  Notation "'model'" := (model func predicate).
+
+  Section Protocol.
+
+    Variable Q : nat -> Type.
+    Variable q0 : Q 0.
+
+    Record transition_ n :=
+      mkTransition {
           output : tuple (term smessage) n -> term smessage -> term smessage;
           guard : tuple (term smessage) n -> term smessage -> term sbool;
           next_state : Q (S n)
