@@ -144,11 +144,11 @@ Section Models.
       { f : forall eta, arands eta -> hlist CompDomain dom -> message |
         message_handle_poly f }.
 
-    Definition attacker := forall (n : nat) (H : n < handle_bound),
+    Definition attacker := prod (forall (n : nat) (H : n < handle_bound),
         match (snd (tnth handles H)) with
         | Message => message_handle (fst (tnth handles H))
         | Bool => bool_handle (fst (tnth handles H))
-        end.
+        end) (forall (trace : list SymbolicSort), bool_handle trace).
 
     (* TODO : Rewrite this prettier, split out cases *)
     Definition CompInterpFunc eta (r : rands eta) (ar : arands eta)
@@ -173,7 +173,7 @@ Section Models.
       cases (snd (tnth handles (i:=n) H));
         simplify;
         refine ((proj1_sig _) _ _ _);
-        pose proof (att n H) as attack;
+        pose proof (fst att n H) as attack;
         rewrite Heq in attack.
       exact attack.
       exact args.
@@ -228,10 +228,10 @@ Section Models.
       : list message :=
       map (term2message H) (machine_knowledge tr).
 
-    Definition indist (att : attacker) (attack : forall (trace : list SymbolicSort), bool_handle trace) (p1 p2 : CompProtocol): Prop.
+    Definition indist (att : attacker) (p1 p2 : CompProtocol): Prop.
       refine (negligible (fun (eta : nat) => (|Pr[bind_rands bool_dec _] - Pr[bind_rands bool_dec _]|))).
       - refine (fun (r : rands eta) (ar : arands eta) => _).
-        refine (proj1_sig (attack _) _ _ _).
+        refine (proj1_sig ((snd att) _) _ _ _).
         exact ar.
         simple refine (let fixed_model : model SymbolicFunc SymbolicPredicate := _ in _).
         refine (Model _ _).
@@ -255,7 +255,7 @@ Section Models.
         exact trace.
         exact H.
       - refine (fun (r : rands eta) (ar : arands eta) => _).
-        refine (proj1_sig (attack _) _ _ _).
+        refine (proj1_sig ((snd att) _) _ _ _).
         exact ar.
         simple refine (let fixed_model : model SymbolicFunc SymbolicPredicate := _ in _).
         refine (Model _ _).
