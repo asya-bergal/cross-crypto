@@ -221,56 +221,38 @@ Section Models.
     Defined.
 
     Definition indist (att : attacker) (p1 p2 : CompProtocol): Prop.
-      refine (negligible (fun (eta : nat) => (|Pr[bind_rands bool_dec _] - Pr[bind_rands bool_dec _]|))).
-      - refine (fun (r : rands eta) (ar : arands eta) => _).
-        refine (proj1_sig ((snd att) _) _ _ _).
-        exact ar.
-        simple refine (let fixed_model : model SymbolicFunc SymbolicPredicate := _ in _).
-        refine (Model _ _).
-        refine (CompInterpFunc r ar att).
-        refine (CompInterpPredicate).
-        simple refine (let fixed_machine : machine := _ in _).
-        exact (model_protocol_machine fixed_model p1).
-        simple refine (list2hlist _).
+      refine (negligible (fun (eta : nat) =>
+                            (|Pr[bind_rands bool_dec
+                                      (fun (r : rands eta) (ar : arands eta) =>
+                                      (proj1_sig ((snd att) _ ) eta ar _))] -
+                              Pr[bind_rands bool_dec
+                                      (fun (r : rands eta) (ar : arands eta) =>
+                                      (proj1_sig ((snd att) _ ) eta ar _))]|))).
+      - simple refine (let fixed_model : model SymbolicFunc SymbolicPredicate :=
+                       Model (CompInterpFunc r ar att) CompInterpPredicate in _).
+        simple refine (let fixed_machine : machine :=
+                       model_protocol_machine fixed_model p1 in list2hlist _).
         exact Message.
         simplify.
         assert (transition_dec fixed_machine) as fixed_machine_dec.
         admit.
-        pose proof (proj1_sig (exists_trace fixed_machine_dec)) as trace.
-        assert (list message).
-        refine (machine_outputs _ _).
+        refine (machine_outputs _ (proj1_sig (exists_trace fixed_machine_dec))).
         exists eta, r, ar, att.
-        instantiate (1 := fixed_model).
         unfold fixed_model.
         equality.
-        subst fixed_machine.
-        exact trace.
-        exact H0.
-      - refine (fun (r : rands eta) (ar : arands eta) => _).
-        refine (proj1_sig ((snd att) _) _ _ _).
-        exact ar.
-        simple refine (let fixed_model : model SymbolicFunc SymbolicPredicate := _ in _).
-        refine (Model _ _).
-        refine (CompInterpFunc r ar att).
-        refine (CompInterpPredicate).
-        simple refine (let fixed_machine : machine := _ in _).
-        exact (model_protocol_machine fixed_model p2).
-        simple refine (list2hlist _).
+      - simple refine (let fixed_model : model SymbolicFunc SymbolicPredicate :=
+                       Model (CompInterpFunc r ar att) CompInterpPredicate in _).
+        simple refine (let fixed_machine : machine :=
+                       model_protocol_machine fixed_model p2 in list2hlist _).
         exact Message.
         simplify.
         assert (transition_dec fixed_machine) as fixed_machine_dec.
         admit.
-        pose proof (proj1_sig (exists_trace fixed_machine_dec)) as trace.
-        assert (list message).
-        refine (machine_outputs _ _).
+        refine (machine_outputs _ (proj1_sig (exists_trace fixed_machine_dec))).
         exists eta, r, ar, att.
-        instantiate (1 := fixed_model).
         unfold fixed_model.
         equality.
-        subst fixed_machine.
-        exact trace.
-        exact H0.
-    Admitted.
+        Admitted.
 
   End CompInterp.
 
