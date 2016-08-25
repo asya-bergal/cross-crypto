@@ -120,29 +120,20 @@ Section Models.
       | Bool => bool
       end.
 
-    Definition bool_handle_poly A
-               (handle : forall eta, arands eta -> hlist CompDomain A -> bool) : Prop.
-    Admitted.
-
-    (*   forall args : hlist CompDomain A, *)
-    (*     poly_time (mk_comp_bool (wrap_handle handle args)). *)
-
-    Definition message_handle_poly A
-               (handle : forall eta, arands eta -> hlist CompDomain A -> message) : Prop.
-    Admitted.
-    (*   : Prop := *)
-    (*   forall args : hlist CompDomain A, *)
-    (*     poly_time (mk_comp_message (wrap_handle handle args)). *)
+    Definition poly_time (A B : nat -> Type) (f : forall (eta : nat), A eta -> B eta) :=
+      exists (f' : nat -> nat),
+        polynomial f' /\
+        forall n, cost (f n) (f' n).
 
     (* Attackers are a generator of computations that are polynomial *)
     (*    time and only access attacker randomness. *)
     Definition bool_handle (dom : list SymbolicSort) :=
       { f : forall eta, arands eta -> hlist CompDomain dom -> bool |
-        bool_handle_poly f }.
+        poly_time f }.
 
     Definition message_handle (dom : list SymbolicSort) :=
       { f : forall eta, arands eta -> hlist CompDomain dom -> message |
-        message_handle_poly f }.
+        poly_time f }.
 
     Definition attacker := prod (forall (n : nat) (H : n < handle_bound),
         match (snd (tnth handles H)) with
@@ -260,7 +251,7 @@ Section Models.
         exists eta, r, ar, att.
         unfold fixed_model.
         equality.
-        Admitted.
+      Admitted.
 
   End CompInterp.
 
