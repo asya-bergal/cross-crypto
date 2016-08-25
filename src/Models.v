@@ -63,12 +63,13 @@ Section Models.
        "Reasonable" should encode that breaking a specified set of hard
        problems should not be possible in poly-time given our cost
        model. *)
-    Context `{function_cost_model}.
+    Context (cost : FunctionCostModel)
+            (fcm : function_cost_model cost).
 
     (* TODO: actual definition of reasonable *)
     Definition reasonable (cost : FunctionCostModel) := True.
 
-    Context `{reasonable cost}.
+    Context (R_cost : reasonable cost).
 
     (* A message is a bitvector of any length *)
     Definition message := {n : nat & Bvector n}.
@@ -169,10 +170,10 @@ Section Models.
       (* Names *)
       exact (existT _ eta (tnth r l)).
       (* Handles *)
-      cases (snd (tnth handles (i:=n) H0));
+      cases (snd (tnth handles (i:=n) H));
         simplify;
         refine ((proj1_sig _) _ _ _);
-        pose proof (fst att n H0) as attack;
+        pose proof (fst att n H) as attack;
         rewrite Heq in attack.
       exact attack.
       exact args.
@@ -193,32 +194,39 @@ Section Models.
 
     Definition CompProtocol := protocol Message STrue.
 
-    Definition machine_outputs : forall (cp : CompProtocol) (m : model SymbolicFunc SymbolicPredicate) (H : exists eta (r : rands eta) (ar : arands eta) att, m = Model (CompInterpFunc r ar att) CompInterpPredicate) (tr : trace (model_protocol_machine m cp)), list message.
-      simplify.
-      refine (_ (head tr)).
-      intros.
-      simplify.
-      unfold machine_state in x.
-      destruct x.
-      destruct p.
-      destruct p.
-      assert (tuple message x).
-      refine (tuple_map _ t0).
-      assert (term SymbolicFunc Message -> m Message).
-      refine (fun t => interp_term m t).
-      assert (m Message = message).
-      pose proof (m.(domain)) as domain.
-      destruct H0.
-      destruct H0.
-      destruct H0.
-      destruct H0.
-      subst m.
-      simplify.
-      auto.
-      rewrite H1 in X.
-      exact X.
-      exact (tuple2list H1).
+    Definition machine_knowledge (cp : CompProtocol)
+               (m : model SymbolicFunc SymbolicPredicate)
+               (tr : trace (model_protocol_machine m cp))
+      : list (term SymbolicFunc Message).
+      refine (_ (head tr)); clear tr.
+      intros [n [[_ _] k]].
+      exact (tuple2list k).
     Defined.
+
+    Definition term2message (m : model SymbolicFunc SymbolicPredicate)
+               (H : exists eta (r : rands eta) (ar : arands eta) att,
+                   m = Model (CompInterpFunc r ar att) CompInterpPredicate)
+               (t : term SymbolicFunc Message) : message.
+      assert (term SymbolicFunc Message -> m Message) as X.
+      {
+        exact (fun t => interp_term m t).
+      }
+      assert (m Message = message) as H0.
+      {
+        pose proof (m.(domain)) as domain.
+        destruct H as [eta [r [ar [att e]]]].
+        subst.
+        reflexivity.
+      }
+      rewrite H0 in X.
+      exact (X t).
+    Defined.
+
+    Definition machine_outputs (cp : CompProtocol) (m : model SymbolicFunc SymbolicPredicate) (H : exists eta (r : rands eta) (ar : arands eta) att,
+                   m = Model (CompInterpFunc r ar att) CompInterpPredicate)
+               (tr : trace (model_protocol_machine m cp))
+      : list message :=
+      map (term2message H) (machine_knowledge tr).
 
     Definition indist (att : attacker) (p1 p2 : CompProtocol): Prop.
       refine (negligible (fun (eta : nat) =>
