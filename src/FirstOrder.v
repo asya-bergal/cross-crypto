@@ -12,6 +12,7 @@ Section FirstOrder.
           (func : list sort -> sort -> Type)
           (predicate : list sort -> Type).
 
+  (* Terms that aren't compositions use a zero-arity function.*)
   Inductive term : sort -> Type :=
     App : forall {dom cod},
             (func dom cod) -> hlist term dom -> term cod.

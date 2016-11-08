@@ -183,6 +183,7 @@ Section Models.
       | Indist _ => False
       end.
 
+    Print protocol.
     Definition CompProtocol := protocol Message STrue.
 
     Definition machine_knowledge (cp : CompProtocol)
@@ -214,7 +215,7 @@ Section Models.
     Defined.
 
     Definition machine_outputs (cp : CompProtocol) (m : model SymbolicFunc SymbolicPredicate) (H : exists eta (r : rands eta) (ar : arands eta) att,
-                   m = Model (CompInterpFunc r ar att) CompInterpPredicate)
+                                                                                                  m = Model (CompInterpFunc r ar att) CompInterpPredicate)
                (tr : trace (model_protocol_machine m cp))
       : list message :=
       map (term2message H) (machine_knowledge tr).
@@ -222,36 +223,33 @@ Section Models.
     Definition indist (att : attacker) (p1 p2 : CompProtocol): Prop.
       refine (negligible (fun (eta : nat) =>
                             (|Pr[bind_rands bool_dec
-                                      (fun (r : rands eta) (ar : arands eta) =>
-                                      (proj1_sig ((snd att) _ ) eta ar _))] -
+                                            (fun (r : rands eta) (ar : arands eta) =>
+                                               (proj1_sig ((snd att) _ ) eta ar
+                                                          (list2hlist (A:=Message) (machine_outputs _ (proj1_sig (exists_trace (p := model_protocol_machine (Model (CompInterpFunc r ar att) CompInterpPredicate) p1) _
+                                ))) )))] -
                               Pr[bind_rands bool_dec
-                                      (fun (r : rands eta) (ar : arands eta) =>
-                                      (proj1_sig ((snd att) _ ) eta ar _))]|))).
+                                            (fun (r : rands eta) (ar : arands eta) =>
+                                               (proj1_sig ((snd att) _ ) eta ar _))]|))).
+      abstract eauto.
+      apply machine_dec.
+      intro.
+      apply bool_dec.
+
       - simple refine (let fixed_model : model SymbolicFunc SymbolicPredicate :=
-                       Model (CompInterpFunc r ar att) CompInterpPredicate in _).
+                           Model (CompInterpFunc r ar att) CompInterpPredicate in _).
         simple refine (let fixed_machine : machine :=
-                       model_protocol_machine fixed_model p1 in list2hlist _).
+                           model_protocol_machine fixed_model p2 in list2hlist _).
         exact Message.
         simplify.
         assert (transition_dec fixed_machine) as fixed_machine_dec.
-        admit.
-        refine (machine_outputs _ (proj1_sig (exists_trace fixed_machine_dec))).
-        exists eta, r, ar, att.
-        unfold fixed_model.
-        equality.
-      - simple refine (let fixed_model : model SymbolicFunc SymbolicPredicate :=
-                       Model (CompInterpFunc r ar att) CompInterpPredicate in _).
-        simple refine (let fixed_machine : machine :=
-                       model_protocol_machine fixed_model p2 in list2hlist _).
-        exact Message.
-        simplify.
-        assert (transition_dec fixed_machine) as fixed_machine_dec.
-        admit.
-        refine (machine_outputs _ (proj1_sig (exists_trace fixed_machine_dec))).
-        exists eta, r, ar, att.
-        unfold fixed_model.
-        equality.
-      Admitted.
+        * apply machine_dec.
+          unfold model_dec_bool.
+          auto.
+        * refine (machine_outputs _ (proj1_sig (exists_trace fixed_machine_dec))).
+          exists eta, r, ar, att.
+          unfold fixed_model.
+          equality.
+    Defined.
 
   End CompInterp.
 
