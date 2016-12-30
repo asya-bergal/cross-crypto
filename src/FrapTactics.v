@@ -113,9 +113,9 @@ Ltac total_ordering N M := destruct (totally_ordered N M).
 
 Ltac inList x xs :=
   match xs with
-  | (x, _) => constr:true
+  | (x, _) => constr:(true)
   | (_, ?xs') => inList x xs'
-  | _ => constr:false
+  | _ => constr:(false)
   end.
 
 Require Import Classical.
