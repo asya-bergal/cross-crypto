@@ -1,5 +1,6 @@
 Require Import FCF.
 Require Import Asymptotic.
+Require Import Tactics.
 
 Section Language.
   Context {base_type : Set} {interp_base_type:base_type->Set}.
@@ -92,13 +93,13 @@ Section SymbolicProof.
   Context (indist : forall {t : type base_type}, term t -> term t -> Prop). Arguments indist {_} _ _.
 
   Context (if_then_else : forall {t}, term (Type_arrow bool (Type_arrow t (Type_arrow t t)))). Arguments if_then_else {_}.
-  Context (indist_rand: forall x y, x <> y -> indist (Term_random x) (Term_random y)).
+  Context (indist_rand: forall x y, indist (Term_random x) (Term_random y)).
   Context (indist_if_then_else_irrelevant_l : forall t (x y:term t),
               indist x y -> forall b:term bool, indist (Term_app (Term_app (Term_app if_then_else b) x) y) x).
 
-  Lemma indist_if_then_else_rand_l (b:term bool) (x y:nat) (x_neq_y:x<>y) :
+  Lemma indist_if_then_else_rand_l (b:term bool) (x y:nat) :
     indist (Term_app (Term_app (Term_app if_then_else b) (Term_random x)) (Term_random y)) (Term_random x).
-  Proof. exact (indist_if_then_else_irrelevant_l _ _ _ (indist_rand x y x_neq_y) _). Qed.
+  Proof. exact (indist_if_then_else_irrelevant_l _ _ _ (indist_rand x y) _). Qed.
 End SymbolicProof.
 
 Definition if_then_else {t : type base_type}
@@ -117,7 +118,24 @@ Goal False.
 (*   ============================ *)
 (*   forall x y : nat, x <> y -> indist id (Term_random x) (Term_random y) *)
 
-  cbv [rand_end indist universal_security_game comp_interp_term]. (* to monadic probability notation *)
+  cbv [rand_end indist universal_security_game comp_interp_term interp_term]. (* to monadic probability notation *)
+  intros.
+  pose proof negligible_const_num 1.
+  eapply negligible_le; [intro eta;etransitivity|..]. {
+    setoid_rewrite evalDist_commute.
+    rewrite !mult_succ_l.
+    generalize (random_size eta) as D; intro D.
+    eapply evalDist_bind_distance.
+    { eapply well_formed_Rnd. }
+    { intros. reflexivity. }
+    { intros evil_rand_tape probe Hevil_rand_tape.
+      set (dst (Type_base BaseType_message) eta (Vector.to_list evil_rand_tape)) as attack.
+      SearchAbout (Rnd (_ + _)).
+      SearchAbout (Bind (Ret _ _) _).
+      SearchAbout Bind Ret.
+      SearchAbout evalDist Bind.
+
+
 
 (* 2 subgoals, subgoal 1 (ID 34) *)
   
