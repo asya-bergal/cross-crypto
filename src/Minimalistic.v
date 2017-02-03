@@ -212,20 +212,36 @@ Section CompInterp.
     Context (adversary:nat -> list bool -> list (list bool) -> list bool).
     Context (distinguisher: forall {t}, nat -> list bool -> interp_type interp_base_type t -> bool).
 
-    Definition comp_interp_term (good_rand_tape evil_rand_tape:list bool) eta {t} (e:term t) :=
+    Definition comp_interp_term_fixed (good_rand_tape evil_rand_tape:list bool) eta {t} (e:term t) :=
       let interp_random (n:nat) : interp_type interp_base_type (Type_base BaseType_message)
           := List.firstn (rand_size eta) (List.skipn (n * rand_size eta) good_rand_tape) in
       let interp_adversarial : interp_type interp_base_type (Type_arrow (Type_base BaseType_list_message) (Type_base BaseType_message))
           := adversary eta evil_rand_tape in
       interp_term interp_random interp_adversarial e eta.
 
+    Global Instance interp_eqdec : forall {t}, EqDec (interp_type interp_base_type t).
+    Admitted.
+
+    (* Definition comp_generate_randomness eta {t:type base_type}(e:term t) :=   *)
+    (*   good_rand_tape' <-$ {0,1}^(rand_end e * rand_size eta); *)
+    (*   evil_rand_tape' <-$ {0,1}^(evil_rand_tape_len eta); *)
+    (*   ret (Vector.to_list good_rand_tape', Vector.to_list evil_rand_tape'). *)
+
+    Definition comp_interp_term eta {t:type base_type} (e:term t)  : Comp (interp_type interp_base_type t) :=
+      good_rand_tape' <-$ {0,1}^(rand_end e * rand_size eta);
+        evil_rand_tape' <-$ {0,1}^(evil_rand_tape_len eta);
+        let good_rand_tape := Vector.to_list good_rand_tape' in
+        let evil_rand_tape := Vector.to_list evil_rand_tape' in
+        ret (comp_interp_term_fixed good_rand_tape evil_rand_tape eta e).
+            
     Definition universal_security_game eta {t:type base_type} (e:term t) : Comp bool :=
       good_rand_tape' <-$ {0,1}^(rand_end e * rand_size eta);
         evil_rand_tape' <-$ {0,1}^(evil_rand_tape_len eta);
         let good_rand_tape := Vector.to_list good_rand_tape' in
         let evil_rand_tape := Vector.to_list evil_rand_tape' in
-        let out := comp_interp_term good_rand_tape evil_rand_tape eta e in
+        let out := comp_interp_term_fixed good_rand_tape evil_rand_tape eta e in
         ret (distinguisher _ eta evil_rand_tape out).
+
   End WithAdversary.
 
   Definition indist {t:type base_type} (a b:term t) : Prop :=  forall l adv dst,
@@ -325,6 +341,10 @@ Goal Type.
   refine (@IND_CPA_SecretKey (fun n : nat => interp_type interp_base_type (Type_base BaseType_message)) (fun n : nat => interp_type interp_base_type (Type_base BaseType_message)) (fun n : nat => interp_type interp_base_type (Type_base BaseType_message)) _ _ _ admissible_A1 admissible_A2).
   pose proof KeyGen.
   cbv [interp_type] in H.
+  simpl.
+  simpl in H.
+  pose @comp_interp_term.
+  
 
   Print Comp.
 
