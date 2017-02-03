@@ -6,6 +6,7 @@ Require Import FrapTactics.
 Require Import Encryption.
 Require Import SplitVector.
 Require Import Coq.Classes.Morphisms.
+Require Import Coq.Lists.SetoidList.
 
 (* TODO: move these *)
 Create HintDb rat discriminated.
@@ -51,6 +52,11 @@ Lemma negligible_0 : negligible (fun _ => 0).
   { apply negligible_const_num. }
 Qed.
 
+
+
+
+
+
 Definition image_relation {T} (R:T->T->Prop) {A} (f:A->T) := fun x y => R (f x) (f y).
 Global Instance Equivalence_image_relation {T R} {Equivalence_R:Equivalence R} {A} (f:A->T) :
   Equivalence (image_relation R f).
@@ -78,7 +84,17 @@ Proof. exact (fun _ _ => id). Qed.
 Global Instance Proper_getSupport {A} : Proper (Comp_eq ==> (@Permutation.Permutation _)) (@getSupport A).
 Proof. intros ???; eapply evalDist_getSupport_perm_id; assumption. Qed.
 
-Global Instance Proper_sumList {A:Set} : Proper ((@Permutation.Permutation A) ==> (Logic.eq ==> eqRat) ==> eqRat) (@sumList A).
+Global Instance Proper_sumList {A:Set} {R:A->A->Prop} : Proper (eqlistA R  ==> (R ==> eqRat) ==> eqRat) (@sumList A).
+Proof.
+  repeat intro. cbv [sumList].
+  rewrite <-!fold_left_rev_right.
+  eapply eqlistA_rev in H.
+  generalize dependent (rev x); generalize dependent (rev y).
+  intros ? ?; induction 1; [reflexivity|].
+  simpl; f_equiv; eauto.
+Qed.
+
+Global Instance Proper_sumList_permutation {A:Set} : Proper ((@Permutation.Permutation A) ==> (Logic.eq ==> eqRat) ==> eqRat) (@sumList A).
 Proof.
   intros ? ? H; induction H; repeat intro; cbv [respectful] in *; rewrite ?sumList_cons.
   { eauto with rat. }
@@ -87,9 +103,10 @@ Proof.
     repeat rewrite <-ratAdd_assoc.
     rewrite (ratAdd_comm (y0 y)).
     f_equiv.
-    admit. }
-  { admit. }
-Admitted.
+    eapply (Proper_sumList(R:=Logic.eq)); eauto; reflexivity. }
+  { etransitivity; [eapply IHPermutation1 | eapply IHPermutation2];
+      intros; subst; (try match goal with H1:_ |- _ => eapply H1 end;reflexivity). }
+Qed.
 
 Global Instance Proper_Bind {A B} : Proper (Comp_eq ==> (Logic.eq==>Comp_eq) ==> Comp_eq) (@Bind A B).
 Proof.
@@ -97,7 +114,7 @@ Proof.
 
   (* TODO: find out why setoid rewrite does not do this *)
   etransitivity; [|reflexivity].
-  eapply Proper_sumList.
+  eapply Proper_sumList_permutation.
   eapply Proper_getSupport.
   eassumption.
   intros ? ? ?; subst.
