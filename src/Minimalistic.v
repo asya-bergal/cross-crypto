@@ -7,133 +7,146 @@ Require Import Encryption.
 Require Import SplitVector.
 Require Import Coq.Classes.Morphisms.
 
-Section TODO.
-  Lemma maxRat_eq : forall r, maxRat r r = r.
-    intros.
-    unfold maxRat.
-    cases (bleRat r r); trivial.
-  Qed.
+(* TODO: move these *)
+Create HintDb rat discriminated.
+Create HintDb ratsimpl discriminated.
 
-  Lemma minRat_eq : forall r, minRat r r = r.
-    intros.
-    unfold minRat.
-    cases (bleRat r r); trivial.
-  Qed.
+Hint Immediate (@reflexivity Rat eqRat _) : rat.
+Hint Immediate (@reflexivity Rat leRat _) : rat.
 
-  Lemma ratDistance_0 : forall r, ratDistance r r == 0.
-    intros.
-    unfold ratDistance.
-    rewrite maxRat_eq.
-    rewrite minRat_eq.
-    apply ratSubtract_0.
-    reflexivity.
-  Qed.
+Lemma maxRat_same r : maxRat r r = r.
+Proof. intros; cbv [maxRat]; destruct (bleRat r r) eqn:?; trivial. Qed.
+Lemma minRat_same r : minRat r r = r.
+Proof. intros; cbv [minRat]; destruct (bleRat r r) eqn:?; trivial. Qed.
 
-  Global Instance Proper_negligible : Proper (pointwise_relation nat eqRat ==> iff) negligible.
-  Proof.
-    cbv [pointwise_relation Proper respectful].
-    intros.
-    split; eauto 10 using negligible_eq.
-    intro.
-    eapply negligible_eq.
-    eassumption.
-    symmetry.
-    eauto.
-  Qed.
+Hint Rewrite ratSubtract_0 minRat_same maxRat_same : ratsimpl.
 
-  Global Instance Proper_negligible_le : Proper (pointwise_relation nat leRat ==> Basics.flip Basics.impl) negligible.
-  Proof.
-    cbv [pointwise_relation Proper respectful].
-    intros.
-    intro.
-    eauto using negligible_le.
-  Qed.
+Lemma ratDistance_same r : ratDistance r r == 0.
+Proof. cbv [ratDistance]; autorewrite with ratsimpl; auto with rat. Qed.
 
-  Lemma negligible_0 : negligible (fun _ => 0).
-    eapply negligible_le with (f1 := fun n => 0 / expnat 2 n).
-    reflexivity.
-    apply negligible_const_num.
-  Qed.
+Hint Rewrite ratDistance_same : ratsimpl.
 
-  Definition image_relation {T} (R:T->T->Prop) {A} (f:A->T) := fun x y => R (f x) (f y).
-  Global Instance Equivalence_image_relation {T R} {Equivalence_R:Equivalence R} {A} (f:A->T) :
-    Equivalence (image_relation R f).
-  Admitted.
 
-  Definition Distribution_eq {A} := pointwise_relation A eqRat.
-  Global Instance Equivalence_Distribution_eq {A} : Equivalence (@Distribution_eq A).
-  Admitted.
 
-  Definition Comp_eq {A} := image_relation Distribution_eq (@evalDist A).
-  Check (_:Equivalence Comp_eq).
 
-  Global Instance Proper_evalDist {A} : Proper (Comp_eq ==> Distribution_eq) (@evalDist A).
-  Proof. exact (fun _ _ => id). Qed.
 
-  Global Instance Proper_getSupport {A} : Proper (Comp_eq ==> (@Permutation.Permutation _)) (@getSupport A).
-  Proof. intros ???; eapply evalDist_getSupport_perm_id; assumption. Qed.
 
-  Global Instance Proper_sumList {A:Set} : Proper ((@Permutation.Permutation A) ==> (Logic.eq ==> eqRat) ==> eqRat) (@sumList A).
-  Proof.
-  Admitted.
+Global Instance Proper_negligible :
+  Proper (pointwise_relation nat eqRat ==> iff) negligible.
+Proof.
+  cbv [pointwise_relation Proper respectful].
+  split; eauto 10 using negligible_eq, (@symmetry _ eqRat _).
+Qed.
 
-  Global Instance Proper_Bind {A B} : Proper (Comp_eq ==> (Logic.eq==>Comp_eq) ==> Comp_eq) (@Bind A B).
-  Proof.
-    intros ?? H ?? G ?. simpl evalDist.
+Global Instance Proper_negligible_le :
+  Proper (pointwise_relation nat leRat ==> Basics.flip Basics.impl) negligible.
+Proof.
+  cbv [pointwise_relation Proper respectful].
+  intros ? ? ? ?; eauto using negligible_le.
+Qed.
 
-    (* TODO: find out why setoid rewrite does not do this *)
-    etransitivity; [|reflexivity].
-    eapply Proper_sumList.
-    eapply Proper_getSupport.
-    eassumption.
-    intros ? ? ?; subst.
+Lemma negligible_0 : negligible (fun _ => 0).
+  eapply negligible_le with (f1 := fun n => 0 / expnat 2 n).
+  { reflexivity. }
+  { apply negligible_const_num. }
+Qed.
+
+Definition image_relation {T} (R:T->T->Prop) {A} (f:A->T) := fun x y => R (f x) (f y).
+Global Instance Equivalence_image_relation {T R} {Equivalence_R:Equivalence R} {A} (f:A->T) :
+  Equivalence (image_relation R f).
+Proof. destruct Equivalence_R; split; cbv; eauto. Qed.
+
+
+
+
+
+
+
+Definition Distribution_eq {A} := pointwise_relation A eqRat.
+
+Global Instance Equivalence_Distribution_eq {A} : Equivalence (@Distribution_eq A).
+Proof.
+  split; repeat intro; eauto using (@symmetry _ eqRat _), (@transitivity _ eqRat _) with rat.
+Qed.
+
+Definition Comp_eq {A} := image_relation Distribution_eq (@evalDist A).
+Global Instance Equivalence_Comp_eq {A} : Equivalence (@Comp_eq A) := _.
+
+Global Instance Proper_evalDist {A} : Proper (Comp_eq ==> Distribution_eq) (@evalDist A).
+Proof. exact (fun _ _ => id). Qed.
+
+Global Instance Proper_getSupport {A} : Proper (Comp_eq ==> (@Permutation.Permutation _)) (@getSupport A).
+Proof. intros ???; eapply evalDist_getSupport_perm_id; assumption. Qed.
+
+Global Instance Proper_sumList {A:Set} : Proper ((@Permutation.Permutation A) ==> (Logic.eq ==> eqRat) ==> eqRat) (@sumList A).
+Proof.
+  intros ? ? H; induction H; repeat intro; cbv [respectful] in *; rewrite ?sumList_cons.
+  { eauto with rat. }
+  { f_equiv; eauto. }
+  { repeat rewrite H by reflexivity.
+    repeat rewrite <-ratAdd_assoc.
+    rewrite (ratAdd_comm (y0 y)).
     f_equiv.
-    { eapply Proper_evalDist. assumption. }
-    { eapply Proper_evalDist. eapply G. reflexivity. }
-  Qed.
+    admit. }
+  { admit. }
+Admitted.
 
-  Lemma Rnd_split_equiv n1 n2 : Comp_eq
-                                  (x <-$ { 0 , 1 }^ n1 + n2; ret splitVector n1 n2 x)
-                                  (x1 <-$ { 0 , 1 }^ n1; x2 <-$ { 0 , 1 }^ n2; ret (x1, x2)).
-  Proof. intro z. eapply Rnd_split_equiv. Qed.
+Global Instance Proper_Bind {A B} : Proper (Comp_eq ==> (Logic.eq==>Comp_eq) ==> Comp_eq) (@Bind A B).
+Proof.
+  intros ?? H ?? G ?. simpl evalDist.
 
-  Lemma eq_impl_negligible : forall A (x y : nat -> Comp A), pointwise_relation _ Comp_eq x y -> forall t, negligible (fun eta : nat => | evalDist (x eta) t - evalDist (y eta) t|).
-  Admitted.
+  (* TODO: find out why setoid rewrite does not do this *)
+  etransitivity; [|reflexivity].
+  eapply Proper_sumList.
+  eapply Proper_getSupport.
+  eassumption.
+  intros ? ? ?; subst.
+  f_equiv.
+  { eapply Proper_evalDist. assumption. }
+  { eapply Proper_evalDist. eapply G. reflexivity. }
+Qed.
 
-  Lemma Comp_eq_bool (x y:Comp bool) :
-    well_formed_comp x
-    -> well_formed_comp y
-    -> Pr [x] == Pr[y]
-    -> Comp_eq x y.
-    intros.
-    intro b.
-    destruct b; trivial.
-    rewrite !evalDist_complement; trivial.
-    f_equiv; trivial.
-  Qed.
+Lemma Rnd_split_equiv n1 n2 : Comp_eq
+                                (x <-$ { 0 , 1 }^ n1 + n2; ret splitVector n1 n2 x)
+                                (x1 <-$ { 0 , 1 }^ n1; x2 <-$ { 0 , 1 }^ n2; ret (x1, x2)).
+Proof. intro z. eapply Rnd_split_equiv. Qed.
 
-  Lemma Comp_eq_evalDist A (x y:Comp A) :
-    well_formed_comp x
-    -> well_formed_comp y
-    -> (forall c, evalDist x c == evalDist y c)
-    -> Comp_eq x y.
-    intros.
-    intro b.
-    apply H1.
-  Qed.
+Lemma eq_impl_negligible : forall A (x y : nat -> Comp A), pointwise_relation _ Comp_eq x y -> forall t, negligible (fun eta : nat => | evalDist (x eta) t - evalDist (y eta) t|).
+Admitted.
 
-  Lemma list_vector_split a b (T : Set) (x : Vector.t T _) : skipn (b) (Vector.to_list x) = Vector.to_list (snd (splitVector (b) a x)).
-    induction b; simpl; intuition.
-    destruct (splitVector b a (Vector.tl x)) eqn:?.
-    specialize (IHb (Vector.tl x)).
-    rewrite Heqp in IHb.
-    simpl in *.
-    rewrite <- IHb.
-    SearchAbout Vector.hd Vector.tl.
-    rewrite (Vector.eta x).
-    reflexivity.
-  Qed.
-End TODO.
+Lemma Comp_eq_bool (x y:Comp bool) :
+  well_formed_comp x
+  -> well_formed_comp y
+  -> Pr [x] == Pr[y]
+  -> Comp_eq x y.
+  intros.
+  intro b.
+  destruct b; trivial.
+  rewrite !evalDist_complement; trivial.
+  f_equiv; trivial.
+Qed.
+
+Lemma Comp_eq_evalDist A (x y:Comp A) :
+  well_formed_comp x
+  -> well_formed_comp y
+  -> (forall c, evalDist x c == evalDist y c)
+  -> Comp_eq x y.
+  intros.
+  intro b.
+  apply H1.
+Qed.
+
+Lemma list_vector_split a b (T : Set) (x : Vector.t T _) : skipn (b) (Vector.to_list x) = Vector.to_list (snd (splitVector (b) a x)).
+  induction b; simpl; intuition.
+  destruct (splitVector b a (Vector.tl x)) eqn:?.
+  specialize (IHb (Vector.tl x)).
+  rewrite Heqp in IHb.
+  simpl in *.
+  rewrite <- IHb.
+  SearchAbout Vector.hd Vector.tl.
+  rewrite (Vector.eta x).
+  reflexivity.
+Qed.
 
 Section Language.
   Context {base_type : Set} {interp_base_type:base_type->Set}.
@@ -222,7 +235,7 @@ Section CompInterp.
 
   Global Instance Reflexive_indist {t} : Reflexive (@indist t).
   Proof.
-    cbv [Reflexive indist]; setoid_rewrite ratDistance_0; eauto using negligible_0.
+    cbv [Reflexive indist]; setoid_rewrite ratDistance_same; eauto using negligible_0.
   Qed.
 
   Global Instance Symmetric_indist {t} : Symmetric (@indist t).
