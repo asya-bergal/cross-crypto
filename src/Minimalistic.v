@@ -336,34 +336,40 @@ Section CompInterp.
   (*   } *)
   (* Admitted. *)
 
-  Notation "A ~> B" := (Type_arrow A B) (at level 80).
+  Delimit Scope term_scope with term.
+
+  Notation "A -> B" := (Type_arrow A B) : term_scope.
+  Notation "A @ B" := (Term_app A B) (at level 99) : term_scope.
+
+  Notation "'rnd' n" := (Term_random n) (at level 35) : term_scope.
+  Notation "'const' c" := (Term_const c) (at level 35) : term_scope.
 
   (* randomness -> key *)
-  Context (KeyGen : nat -> interp_type interp_base_type (Type_base BaseType_message ~> Type_base BaseType_message)).
+  Context (KeyGen : nat -> interp_type interp_base_type (Type_base BaseType_message -> Type_base BaseType_message)%term).
   (* key -> plaintext -> randomness -> ciphertext *)
-  Context (Encrypt : nat -> interp_type interp_base_type (Type_base BaseType_message ~> ((Type_base BaseType_message) ~> (Type_base BaseType_message ~> Type_base BaseType_message)))).
+  Context (Encrypt : nat -> interp_type interp_base_type (Type_base BaseType_message -> ((Type_base BaseType_message) -> (Type_base BaseType_message -> Type_base BaseType_message)))%term).
   (* key -> ciphertext -> plaintext *)
-  Context (Decrypt : nat -> interp_type interp_base_type (Type_base BaseType_message ~> (Type_base BaseType_message ~> Type_base BaseType_message))).
+  Context (Decrypt : nat -> interp_type interp_base_type (Type_base BaseType_message -> (Type_base BaseType_message -> Type_base BaseType_message))%term).
 
   Context (admissible_A1: pred_oc_fam).
   Context (admissible_A2: pred_oc_func_2_fam).
 
 
-Goal Type.
-  Print IND_CPA_SecretKey.
-  refine (@IND_CPA_SecretKey (fun n : nat => interp_type interp_base_type (Type_base BaseType_message)) (fun n : nat => interp_type interp_base_type (Type_base BaseType_message)) (fun n : nat => interp_type interp_base_type (Type_base BaseType_message)) _ _ _ admissible_A1 admissible_A2).
-  pose proof KeyGen.
-  cbv [interp_type] in H.
-  simpl.
-  simpl in H.
-  pose @comp_interp_term.
+(* Goal Type. *)
+(*   Print IND_CPA_SecretKey. *)
+(*   refine (@IND_CPA_SecretKey (fun n : nat => interp_type interp_base_type (Type_base BaseType_message)) (fun n : nat => interp_type interp_base_type (Type_base BaseType_message)) (fun n : nat => interp_type interp_base_type (Type_base BaseType_message)) _ _ _ admissible_A1 admissible_A2). *)
+(*   pose proof KeyGen. *)
+(*   cbv [interp_type] in H. *)
+(*   simpl. *)
+(*   simpl in H. *)
+(*   pose @comp_interp_term. *)
   
 
   Print Comp.
 
   Lemma indist_encrypt :
     forall (p0 p1 : forall _ : nat, interp_type interp_base_type (Type_base BaseType_message)) (n0 n1 : nat),
-      n0 <> n1 -> indist (Term_app (Term_app (Term_const Encrypt) (Term_app (Term_const KeyGen) (Term_random n0))) (Term_const p0)) (Term_app (Term_app (Term_const Encrypt) (Term_app (Term_const KeyGen) (Term_random n1))) (Term_const p1)).
+      n0 <> n1 -> indist (const Encrypt @ (const KeyGen @ (rnd n0)) @ (const p0))%term (const Encrypt @ (const KeyGen @ (rnd n1)) @ (const p1))%term.
   Proof.
     cbv [rand_end indist universal_security_game comp_interp_term interp_term].
     intros.
