@@ -183,7 +183,6 @@ Section Models.
       | Indist _ => False
       end.
 
-    Print protocol.
     Definition CompProtocol := protocol Message STrue.
 
     Definition machine_knowledge (cp : CompProtocol)
@@ -220,6 +219,7 @@ Section Models.
       : list message :=
       map (term2message H) (machine_knowledge tr).
 
+    (* Should be forall *)
     Definition indist (att : attacker) (p1 p2 : CompProtocol): Prop.
       refine (negligible (fun (eta : nat) =>
                             (|Pr[bind_rands bool_dec
