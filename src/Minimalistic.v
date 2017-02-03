@@ -53,6 +53,85 @@ Section TODO.
     reflexivity.
     apply negligible_const_num.
   Qed.
+
+  Definition image_relation {T} (R:T->T->Prop) {A} (f:A->T) := fun x y => R (f x) (f y).
+  Global Instance Equivalence_image_relation {T R} {Equivalence_R:Equivalence R} {A} (f:A->T) :
+    Equivalence (image_relation R f).
+  Admitted.
+
+  Definition Distribution_eq {A} := pointwise_relation A eqRat.
+  Global Instance Equivalence_Distribution_eq {A} : Equivalence (@Distribution_eq A).
+  Admitted.
+
+  Definition Comp_eq {A} := image_relation Distribution_eq (@evalDist A).
+  Check (_:Equivalence Comp_eq).
+
+  Global Instance Proper_evalDist {A} : Proper (Comp_eq ==> Distribution_eq) (@evalDist A).
+  Proof. exact (fun _ _ => id). Qed.
+
+  Global Instance Proper_getSupport {A} : Proper (Comp_eq ==> (@Permutation.Permutation _)) (@getSupport A).
+  Proof. intros ???; eapply evalDist_getSupport_perm_id; assumption. Qed.
+
+  Global Instance Proper_sumList {A:Set} : Proper ((@Permutation.Permutation A) ==> (Logic.eq ==> eqRat) ==> eqRat) (@sumList A).
+  Proof.
+  Admitted.
+
+  Global Instance Proper_Bind {A B} : Proper (Comp_eq ==> (Logic.eq==>Comp_eq) ==> Comp_eq) (@Bind A B).
+  Proof.
+    intros ?? H ?? G ?. simpl evalDist.
+
+    (* TODO: find out why setoid rewrite does not do this *)
+    etransitivity; [|reflexivity].
+    eapply Proper_sumList.
+    eapply Proper_getSupport.
+    eassumption.
+    intros ? ? ?; subst.
+    f_equiv.
+    { eapply Proper_evalDist. assumption. }
+    { eapply Proper_evalDist. eapply G. reflexivity. }
+  Qed.
+
+  Lemma Rnd_split_equiv n1 n2 : Comp_eq
+                                  (x <-$ { 0 , 1 }^ n1 + n2; ret splitVector n1 n2 x)
+                                  (x1 <-$ { 0 , 1 }^ n1; x2 <-$ { 0 , 1 }^ n2; ret (x1, x2)).
+  Proof. intro z. eapply Rnd_split_equiv. Qed.
+
+  Lemma eq_impl_negligible : forall A (x y : nat -> Comp A), pointwise_relation _ Comp_eq x y -> forall t, negligible (fun eta : nat => | evalDist (x eta) t - evalDist (y eta) t|).
+  Admitted.
+
+  Lemma Comp_eq_bool (x y:Comp bool) :
+    well_formed_comp x
+    -> well_formed_comp y
+    -> Pr [x] == Pr[y]
+    -> Comp_eq x y.
+    intros.
+    intro b.
+    destruct b; trivial.
+    rewrite !evalDist_complement; trivial.
+    f_equiv; trivial.
+  Qed.
+
+  Lemma Comp_eq_evalDist A (x y:Comp A) :
+    well_formed_comp x
+    -> well_formed_comp y
+    -> (forall c, evalDist x c == evalDist y c)
+    -> Comp_eq x y.
+    intros.
+    intro b.
+    apply H1.
+  Qed.
+
+  Lemma list_vector_split a b (T : Set) (x : Vector.t T _) : skipn (b) (Vector.to_list x) = Vector.to_list (snd (splitVector (b) a x)).
+    induction b; simpl; intuition.
+    destruct (splitVector b a (Vector.tl x)) eqn:?.
+    specialize (IHb (Vector.tl x)).
+    rewrite Heqp in IHb.
+    simpl in *.
+    rewrite <- IHb.
+    SearchAbout Vector.hd Vector.tl.
+    rewrite (Vector.eta x).
+    reflexivity.
+  Qed.
 End TODO.
 
 Section Language.
@@ -224,19 +303,35 @@ Section CompInterp.
   Context (admissible_A1: pred_oc_fam).
   Context (admissible_A2: pred_oc_func_2_fam).
 
-  (* key -> plaintext -> ciphertext *)
-
-(* Goal Type. *)
-
-(*   Unset Printing Notations. *)
-(* refine ( *)
-(*     forall n (p0 p1 : term (Type_base BaseType_message)) (n0 n1 : nat), *)
-(*       n0 <> n1 -> indist (Term_app (Term_app (Term_const Encrypt) (Term_app (Term_const KeyGen) (Term_random n0))) p0) (Term_app (Term_app (Term_const Encrypt) (Term_app (Term_const KeyGen) (Term_random n1))) p1)). *)
-
   Lemma indist_encrypt :
-    forall (p0 p1 : term (Type_base BaseType_message)) (n0 n1 : nat),
-      n0 <> n1 -> indist (Term_app (Term_app (Term_const Encrypt) (Term_app (Term_const KeyGen) (Term_random n0))) p0) (Term_app (Term_app (Term_const Encrypt) (Term_app (Term_const KeyGen) (Term_random n1))) p1).
+    forall (p0 p1 : interp_type interp_base_type (Type_base BaseType_message)) (n0 n1 : nat),
+      n0 <> n1 -> indist (Term_app (Term_app (Term_const Encrypt) (Term_app (Term_const KeyGen) (Term_random n0))) (Term_const p0)) (Term_app (Term_app (Term_const Encrypt) (Term_app (Term_const KeyGen) (Term_random n1))) (Term_const p1)).
+  Proof.
+    cbv [rand_end indist universal_security_game comp_interp_term interp_term].
+    intros.
+    apply eq_impl_negligible.
+    intros eta.
+    apply Comp_eq_bool.
+    fcf_well_formed.
+    fcf_well_formed.
+    dist_swap_l.
+    dist_swap_r.
+    fcf_skip.
+    generalize (rand_size eta) as D; intro D.
+    rewrite ?(Max.max_0_l).
+    rewrite ?(Max.max_0_r).
 
+  (* generalize (random_size eta) as D; intro D. *)
+    Admitted.
+  (* pose proof negligible_const_num 1. *)
+  (* apply eq_impl_negligible. *)
+
+  (* intros eta. *)
+  (* apply Comp_eq_bool. *)
+  (* fcf_well_formed. *)
+  (* fcf_well_formed. *)
+  (* dist_swap_l. *)
+  (*   cbv [rand_end indist universal_security_game comp_interp_term interp_term]. (* to monadic probability notation *) *)
   (* Context {message list_message rand : base_type}. *)
 
   (* Context (Plaintext Ciphertext Key : DataTypeFamily). *)
@@ -283,85 +378,6 @@ End SymbolicProof.
 Definition if_then_else {t : type base_type}
   : interp_type interp_base_type (Type_arrow (type_base BaseType_bool) (Type_arrow t (Type_arrow t t)))
   := fun (b : bool) (x y : interp_type interp_base_type t) => if b then x else y.
-
-Definition image_relation {T} (R:T->T->Prop) {A} (f:A->T) := fun x y => R (f x) (f y).
-Global Instance Equivalence_image_relation {T R} {Equivalence_R:Equivalence R} {A} (f:A->T) :
-  Equivalence (image_relation R f).
-Admitted.
-
-Definition Distribution_eq {A} := pointwise_relation A eqRat.
-Global Instance Equivalence_Distribution_eq {A} : Equivalence (@Distribution_eq A).
-Admitted.
-
-Definition Comp_eq {A} := image_relation Distribution_eq (@evalDist A).
-Check (_:Equivalence Comp_eq).
-
-Global Instance Proper_evalDist {A} : Proper (Comp_eq ==> Distribution_eq) (@evalDist A).
-Proof. exact (fun _ _ => id). Qed.
-
-Global Instance Proper_getSupport {A} : Proper (Comp_eq ==> (@Permutation.Permutation _)) (@getSupport A).
-Proof. intros ???; eapply evalDist_getSupport_perm_id; assumption. Qed.
-
-Global Instance Proper_sumList {A:Set} : Proper ((@Permutation.Permutation A) ==> (Logic.eq ==> eqRat) ==> eqRat) (@sumList A).
-Proof.
-Admitted.
-
-Global Instance Proper_Bind {A B} : Proper (Comp_eq ==> (Logic.eq==>Comp_eq) ==> Comp_eq) (@Bind A B).
-Proof.
-  intros ?? H ?? G ?. simpl evalDist.
-
-  (* TODO: find out why setoid rewrite does not do this *)
-  etransitivity; [|reflexivity].
-  eapply Proper_sumList.
-  eapply Proper_getSupport.
-  eassumption.
-  intros ? ? ?; subst.
-  f_equiv.
-  { eapply Proper_evalDist. assumption. }
-  { eapply Proper_evalDist. eapply G. reflexivity. }
-Qed.
-
-Lemma Rnd_split_equiv n1 n2 : Comp_eq
-    (x <-$ { 0 , 1 }^ n1 + n2; ret splitVector n1 n2 x)
-    (x1 <-$ { 0 , 1 }^ n1; x2 <-$ { 0 , 1 }^ n2; ret (x1, x2)).
-Proof. intro z. eapply Rnd_split_equiv. Qed.
-
-Lemma eq_impl_negligible : forall A (x y : nat -> Comp A), pointwise_relation _ Comp_eq x y -> forall t, negligible (fun eta : nat => | evalDist (x eta) t - evalDist (y eta) t|).
-  Admitted.
-
-Lemma Comp_eq_bool (x y:Comp bool) :
- well_formed_comp x
- -> well_formed_comp y
-  -> Pr [x] == Pr[y]
-  -> Comp_eq x y.
-  intros.
-  intro b.
-  destruct b; trivial.
-  rewrite !evalDist_complement; trivial.
-  f_equiv; trivial.
-Qed.
-
-Lemma Comp_eq_evalDist A (x y:Comp A) :
- well_formed_comp x
- -> well_formed_comp y
-  -> (forall c, evalDist x c == evalDist y c)
-  -> Comp_eq x y.
-  intros.
-  intro b.
-  apply H1.
-Qed.
-
-  Lemma list_vector_split a b (T : Set) (x : Vector.t T _) : skipn (b) (Vector.to_list x) = Vector.to_list (snd (splitVector (b) a x)).
-    induction b; simpl; intuition.
-    destruct (splitVector b a (Vector.tl x)) eqn:?.
-    specialize (IHb (Vector.tl x)).
-    rewrite Heqp in IHb.
-    simpl in *.
-    rewrite <- IHb.
-    SearchAbout Vector.hd Vector.tl.
-    rewrite (Vector.eta x).
-    reflexivity.
-  Qed.
 (* Lemma Comp_eq_impl_evalDist A (x y : Comp A): *)
 (*   Comp_eq x y -> *)
 (*   evalDist *)
