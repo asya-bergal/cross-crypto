@@ -4,7 +4,7 @@ Require Import Admissibility.
 Require Import Tactics.
 Require Import FrapTactics.
 Require Import Encryption.
-Require Import splitVector.
+Require Import SplitVector.
 Require Import Coq.Classes.Morphisms.
 
 Section TODO.
