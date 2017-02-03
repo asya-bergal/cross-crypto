@@ -3,6 +3,7 @@ Require Import Asymptotic.
 Require Import Admissibility.
 Require Import Tactics.
 Require Import FrapTactics.
+Require Import Encryption.
 Require Import splitVector.
 Require Import Coq.Classes.Morphisms.
 
@@ -149,7 +150,7 @@ Section Language.
 
   Context {message list_message rand : base_type}.
   Inductive term : type -> Type :=
-  | Term_const {t} (_: interp_type t) : term t
+  | Term_const {t} (_: nat -> interp_type t) : term t
   | Term_random (_:nat) : term rand
   | Term_adversarial (_:term list_message) : term message
   | Term_app {dom cod} (_:term (Type_arrow dom cod)) (_:term dom) : term cod.
@@ -165,12 +166,12 @@ Section Language.
   Context (interp_random : nat -> interp_type rand).
   Context (interp_adversarial : interp_type list_message -> interp_type message).
   Fixpoint interp_term
-           {t} (e:term t) : interp_type t :=
+           {t} (e:term t) (eta : nat) : interp_type t :=
     match e with
-    | Term_const c => c
+    | Term_const c => c eta
     | Term_random n => interp_random n
-    | Term_adversarial ctx => interp_adversarial (interp_term ctx)
-    | Term_app f x => (interp_term f) (interp_term x)
+    | Term_adversarial ctx => interp_adversarial (interp_term ctx eta)
+    | Term_app f x => (interp_term f eta) (interp_term x eta)
     end.
 End Language.
 
@@ -203,7 +204,7 @@ Section CompInterp.
           := List.firstn (rand_size eta) (List.skipn (n * rand_size eta) good_rand_tape) in
       let interp_adversarial : interp_type interp_base_type (Type_arrow (Type_base BaseType_list_message) (Type_base BaseType_message))
           := adversary eta evil_rand_tape in
-      interp_term interp_random interp_adversarial e.
+      interp_term interp_random interp_adversarial e eta.
 
     Definition universal_security_game eta {t:type base_type} (e:term t) : Comp bool :=
       good_rand_tape' <-$ {0,1}^(rand_end e * rand_size eta);
@@ -236,75 +237,86 @@ Section CompInterp.
 
         (* dst : forall t : type base_type, nat -> list bool -> interp_type interp_base_type t -> bool, *)
 
-  Lemma not_indist_const {t} (x y : interp_type interp_base_type t) (tEqDec:forall x y : interp_type interp_base_type t, {x=y}+{x<>y}) (typeDec : forall x y : type base_type, {x=y}+{x<>y}) (H:x <> y) : ~indist (Term_const x) (Term_const y).
+  Lemma not_indist_const {t} (x y : nat -> interp_type interp_base_type t) (tEqDec:forall x y : interp_type interp_base_type t, {x=y}+{x<>y}) (typeDec : forall x y : type base_type, {x=y}+{x<>y}) (H:x <> y) : ~indist (Term_const x) (Term_const y).
   Proof.
     cbv [indist].
     intro X.
-    specialize (X id (fun _ _ _ => nil)
-                  ((fun t' => match typeDec t t' with
-                           | left pfeq => fun _ _ x' => ltac:(
-                                                      rewrite <- pfeq in x'; exact (if tEqDec x x' then true else false))
-                           | right pfne => fun _ _ _ => false
-                           end))).
-
-    cbv [universal_security_game comp_interp_term interp_term] in X.
-    destruct (typeDec t t) in X; [|congruence].
-    cbv [eq_rec_r eq_rec eq_rect eq_sym] in X.
-    replace e with (eq_refl:t=t) in X by admit.
-
-    destruct (tEqDec x x) in X; [|congruence].
-    destruct (tEqDec x y) in X; [congruence|].
-    cbv[negligible] in X.
-    specialize (X 1%nat).
-    destruct X as [n' X].
-    specialize (X (1+n')%nat).
-    assert (nz (1+n')) by (constructor; omega).
-    specialize (X H0).
-    assert (1 + n' > n') by omega.
-    specialize (X H1).
-    apply X; clear X.
-
-    lazymatch goal with
-      |- context [ Pr [?C] ] =>
-      let H := fresh "H" in
-      assert (Pr [C] == 1) as H;
-        [|rewrite H; clear H]
-    end.
-    {
-      fcf_irr_l; fcf_well_formed; fcf_irr_l; fcf_well_formed; fcf_compute.
-    }
-
-  lazymatch goal with
-    |- context [ Pr [?C] ] =>
-    let H := fresh "H" in
-    assert (Pr [C] == 0) as H;
-    [|rewrite H; clear H]
-  end.
-    {
-      fcf_irr_l; fcf_well_formed; fcf_irr_l; fcf_well_formed; fcf_compute.
-    }
-    {
-      lazymatch goal with |- ?a <= ?b => change (a <= 1) end.
-      apply rat_le_1.
-      apply expnat_ge_1.
-      omega.
-    }
   Admitted.
+  (* TODO: This needs to be fixed for the new Term_const constructor *)
+  (*   specialize (X id (fun _ _ _ => nil) *)
+  (*                 ((fun t' => match typeDec t t' with *)
+  (*                          | left pfeq => fun _ _ x' => ltac:( *)
+  (*                                                     rewrite <- pfeq in x'; exact (if tEqDec x x' then true else false)) *)
+  (*                          | right pfne => fun _ _ _ => false *)
+  (*                          end))). *)
+
+  (*   cbv [universal_security_game comp_interp_term interp_term] in X. *)
+  (*   destruct (typeDec t t) in X; [|congruence]. *)
+  (*   cbv [eq_rec_r eq_rec eq_rect eq_sym] in X. *)
+  (*   replace e with (eq_refl:t=t) in X by admit. *)
+
+  (*   destruct (tEqDec x x) in X; [|congruence]. *)
+  (*   destruct (tEqDec x y) in X; [congruence|]. *)
+  (*   cbv[negligible] in X. *)
+  (*   specialize (X 1%nat). *)
+  (*   destruct X as [n' X]. *)
+  (*   specialize (X (1+n')%nat). *)
+  (*   assert (nz (1+n')) by (constructor; omega). *)
+  (*   specialize (X H0). *)
+  (*   assert (1 + n' > n') by omega. *)
+  (*   specialize (X H1). *)
+  (*   apply X; clear X. *)
+
+  (*   lazymatch goal with *)
+  (*     |- context [ Pr [?C] ] => *)
+  (*     let H := fresh "H" in *)
+  (*     assert (Pr [C] == 1) as H; *)
+  (*       [|rewrite H; clear H] *)
+  (*   end. *)
+  (*   { *)
+  (*     fcf_irr_l; fcf_well_formed; fcf_irr_l; fcf_well_formed; fcf_compute. *)
+  (*   } *)
+
+  (* lazymatch goal with *)
+  (*   |- context [ Pr [?C] ] => *)
+  (*   let H := fresh "H" in *)
+  (*   assert (Pr [C] == 0) as H; *)
+  (*   [|rewrite H; clear H] *)
+  (* end. *)
+  (*   { *)
+  (*     fcf_irr_l; fcf_well_formed; fcf_irr_l; fcf_well_formed; fcf_compute. *)
+  (*   } *)
+  (*   { *)
+  (*     lazymatch goal with |- ?a <= ?b => change (a <= 1) end. *)
+  (*     apply rat_le_1. *)
+  (*     apply expnat_ge_1. *)
+  (*     omega. *)
+  (*   } *)
+  (* Admitted. *)
 
   Notation "A ~> B" := (Type_arrow A B) (at level 80).
 
   (* randomness -> key *)
-  Context (KeyGen : interp_type interp_base_type (Type_base BaseType_message ~> Type_base BaseType_message)).
+  Context (KeyGen : nat -> interp_type interp_base_type (Type_base BaseType_message ~> Type_base BaseType_message)).
   (* key -> plaintext -> randomness -> ciphertext *)
-  Context (Encrypt : interp_type interp_base_type (Type_base BaseType_message ~> ((Type_base BaseType_message) ~> (Type_base BaseType_message ~> Type_base BaseType_message)))).
+  Context (Encrypt : nat -> interp_type interp_base_type (Type_base BaseType_message ~> ((Type_base BaseType_message) ~> (Type_base BaseType_message ~> Type_base BaseType_message)))).
   (* key -> ciphertext -> plaintext *)
-  Context (Decrypt : interp_type interp_base_type (Type_base BaseType_message ~> (Type_base BaseType_message ~> Type_base BaseType_message))).
+  Context (Decrypt : nat -> interp_type interp_base_type (Type_base BaseType_message ~> (Type_base BaseType_message ~> Type_base BaseType_message))).
 
   Context (admissible_A1: pred_oc_fam).
   Context (admissible_A2: pred_oc_func_2_fam).
 
+
+Goal Type.
+  Print IND_CPA_SecretKey.
+  refine (@IND_CPA_SecretKey (fun n : nat => interp_type interp_base_type (Type_base BaseType_message)) (fun n : nat => interp_type interp_base_type (Type_base BaseType_message)) (fun n : nat => interp_type interp_base_type (Type_base BaseType_message)) _ _ _ admissible_A1 admissible_A2).
+  pose proof KeyGen.
+  cbv [interp_type] in H.
+
+  Print Comp.
+
   Lemma indist_encrypt :
-    forall (p0 p1 : interp_type interp_base_type (Type_base BaseType_message)) (n0 n1 : nat),
+    forall (p0 p1 : forall _ : nat, interp_type interp_base_type (Type_base BaseType_message)) (n0 n1 : nat),
       n0 <> n1 -> indist (Term_app (Term_app (Term_const Encrypt) (Term_app (Term_const KeyGen) (Term_random n0))) (Term_const p0)) (Term_app (Term_app (Term_const Encrypt) (Term_app (Term_const KeyGen) (Term_random n1))) (Term_const p1)).
   Proof.
     cbv [rand_end indist universal_security_game comp_interp_term interp_term].
