@@ -219,6 +219,10 @@ Section CompInterp.
     | BaseType_list_message => list (list bool)
     end.
   Let term := (term interp_base_type BaseType_message BaseType_list_message BaseType_message).
+  
+  (* TODO: we aither need to only allow computing base types OR require all types to be finite *)
+  Global Instance interp_eqdec : forall {t}, EqDec (interp_type interp_base_type t).
+  Admitted.
 
   (* different protocols may use different amounts of randomness at the same security level. this is an awkward and boring parameter *)
   Context (rand_size : nat -> nat).
@@ -235,14 +239,6 @@ Section CompInterp.
       let interp_adversarial : interp_type interp_base_type (Type_arrow (Type_base BaseType_list_message) (Type_base BaseType_message))
           := adversary eta evil_rand_tape in
       interp_term interp_random interp_adversarial e eta.
-
-    Global Instance interp_eqdec : forall {t}, EqDec (interp_type interp_base_type t).
-    Admitted.
-
-    (* Definition comp_generate_randomness eta {t:type base_type}(e:term t) :=   *)
-    (*   good_rand_tape' <-$ {0,1}^(rand_end e * rand_size eta); *)
-    (*   evil_rand_tape' <-$ {0,1}^(evil_rand_tape_len eta); *)
-    (*   ret (Vector.to_list good_rand_tape', Vector.to_list evil_rand_tape'). *)
 
     Definition comp_interp_term eta {t:type base_type} (e:term t)  : Comp (interp_type interp_base_type t) :=
       good_rand_tape' <-$ {0,1}^(rand_end e * rand_size eta);
