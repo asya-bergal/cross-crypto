@@ -1,12 +1,3 @@
 -R src CrossCrypto
-src/CompUtil.v
-src/Execution.v
-src/FirstOrder.v
 src/FrapTactics.v
-src/HList.v
-src/ListUtil.v
 src/Minimalistic.v
-src/Models.v
-src/Protocol.v
-src/Tail.v
-src/Tuple.v
