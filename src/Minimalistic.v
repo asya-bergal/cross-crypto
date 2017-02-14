@@ -338,78 +338,6 @@ Section CompInterp.
 
   (* Qed. *)
 
-
-Lemma indist_rand: forall x y : nat, indist random_size (Term_random x) (Term_random y).
-Proof.
-  cbv [rand_end indist universal_security_game comp_interp_term interp_term]. (* to monadic probability notation *)
-  intros.
-  pose proof negligible_const_num 1.
-  apply eq_impl_negligible.
-  intros eta.
-  apply Comp_eq_bool.
-  fcf_well_formed.
-  fcf_well_formed.
-  dist_swap_l.
-  dist_swap_r.
-  fcf_skip.
-  generalize (random_size eta) as D; intro D.
-
-
-  Context (Encrypt : nat -> interp_type interp_base_type (s_message -> s_message -> s_message -> s_message)%term).
-  Definition eqwhp (a b :  ) : indist (
-  Lemma indist_encrypt
-  (p0 p1 : forall _ : nat, interp_type interp_base_type (Type_base BaseType_message))
-  (r n0 n1: nat)
-  (HNoDup:NoDup (r::n0::n1::nil))
-  : indist (const Encrypt @ (const KeyGen @ (rnd r)) @ (rnd n0) @ (const p0))%term
-           (const Encrypt @ (const KeyGen @ (rnd r)) @ (rnd n1) @ (const p1))%term.
-
-  (* Definition eqwhp (a b : term *)
-(* thing you might wanna do: define [eqwhp] as [indist (decide_eq_bool a b) true], try to prove some lemma like Cong in the latest paper *)
-
-  (*   destruct (typeDec t t) in X; [|congruence]. *)
-  (*   cbv [eq_rec_r eq_rec eq_rect eq_sym] in X. *)
-  (*   replace e with (eq_refl:t=t) in X by admit. *)
-
-  (*   destruct (tEqDec x x) in X; [|congruence]. *)
-  (*   destruct (tEqDec x y) in X; [congruence|]. *)
-  (*   cbv[negligible] in X. *)
-  (*   specialize (X 1%nat). *)
-  (*   destruct X as [n' X]. *)
-  (*   specialize (X (1+n')%nat). *)
-  (*   assert (nz (1+n')) by (constructor; omega). *)
-  (*   specialize (X H0). *)
-  (*   assert (1 + n' > n') by omega. *)
-  (*   specialize (X H1). *)
-  (*   apply X; clear X. *)
-
-  (*   lazymatch goal with *)
-  (*     |- context [ Pr [?C] ] => *)
-  (*     let H := fresh "H" in *)
-  (*     assert (Pr [C] == 1) as H; *)
-  (*       [|rewrite H; clear H] *)
-  (*   end. *)
-  (*   { *)
-  (*     fcf_irr_l; fcf_well_formed; fcf_irr_l; fcf_well_formed; fcf_compute. *)
-  (*   } *)
-
-  (* lazymatch goal with *)
-  (*   |- context [ Pr [?C] ] => *)
-  (*   let H := fresh "H" in *)
-  (*   assert (Pr [C] == 0) as H; *)
-  (*   [|rewrite H; clear H] *)
-  (* end. *)
-  (*   { *)
-  (*     fcf_irr_l; fcf_well_formed; fcf_irr_l; fcf_well_formed; fcf_compute. *)
-  (*   } *)
-  (*   { *)
-  (*     lazymatch goal with |- ?a <= ?b => change (a <= 1) end. *)
-  (*     apply rat_le_1. *)
-  (*     apply expnat_ge_1. *)
-  (*     omega. *)
-  (*   } *)
-  (* Admitted. *)
-
   (* randomness -> key *)
   Context (KeyGen : nat -> interp_type interp_base_type (s_message -> s_message)%term).
   (* key -> plaintext -> randomness -> ciphertext *)
@@ -420,16 +348,6 @@ Proof.
   Context (admissible_A1: pred_oc_fam).
   Context (admissible_A2: pred_oc_func_2_fam).
 
-
-(* Goal Type. *)
-(*   Print IND_CPA_SecretKey. *)
-(*   refine (@IND_CPA_SecretKey (fun n : nat => interp_type interp_base_type (Type_base BaseType_message)) (fun n : nat => interp_type interp_base_type (Type_base BaseType_message)) (fun n : nat => interp_type interp_base_type (Type_base BaseType_message)) _ _ _ admissible_A1 admissible_A2). *)
-(*   pose proof KeyGen. *)
-(*   cbv [interp_type] in H. *)
-(*   simpl. *)
-(*   simpl in H. *)
-(*   pose @comp_interp_term. *)
-  
 
   Lemma indist_encrypt
   (p0 p1 : forall _ : nat, interp_type interp_base_type (s_message))
@@ -458,25 +376,6 @@ Proof.
 
   (* generalize (random_size eta) as D; intro D. *)
     Admitted.
-  (* pose proof negligible_const_num 1. *)
-  (* apply eq_impl_negligible. *)
-
-  (* intros eta. *)
-  (* apply Comp_eq_bool. *)
-  (* fcf_well_formed. *)
-  (* fcf_well_formed. *)
-  (* dist_swap_l. *)
-  (*   cbv [rand_end indist universal_security_game comp_interp_term interp_term]. (* to monadic probability notation *) *)
-  (* Context {message list_message rand : base_type}. *)
-
-  (* Context (Plaintext Ciphertext Key : DataTypeFamily). *)
-  (* Context {base_type : Set} {interp_base_type:base_type->Set}. *)
-  (* Inductive type := Type_base (t:base_type) | Type_arrow (dom:type) (cod:type). *)
-  (* Context {base_type : Set} {interp_base_type:base_type->Set}. *)
-
-  (* Check term rand. *)
-
-
 
 (** proving soundness of symbolic axioms *)
   End CompInterp.
@@ -526,11 +425,10 @@ Proof.
   dist_swap_l.
   dist_swap_r.
   fcf_skip.
-  generalize (random_size eta) as D; intro D.
 
-  assert (Pr [c <-$ (d <-$ (a <-$ { 0 , 1 }^ x * D + D; ret (splitVector (x * D) D a)); ret snd d);
+  assert (Pr [c <-$ (d <-$ (a <-$ { 0 , 1 }^ x * random_size eta + random_size eta; ret (splitVector (x * random_size eta) (random_size eta) a)); ret snd d);
               ret dst (Type_base BaseType_message) eta (Vector.to_list x0) (Vector.to_list c) ] ==
-          Pr [c <-$ (d <-$ (a <-$ { 0 , 1 }^ y * D + D; ret (splitVector (y * D) D a)); ret snd d);
+          Pr [c <-$ (d <-$ (a <-$ { 0 , 1 }^ y * random_size eta + random_size eta; ret (splitVector (y * random_size eta) (random_size eta) a)); ret snd d);
               ret dst (Type_base BaseType_message) eta (Vector.to_list x0) (Vector.to_list c) ] ).
   {
     fcf_skip.
@@ -566,31 +464,27 @@ Proof.
   }
   etransitivity.
   etransitivity.
-  2: apply H2.
+  2: apply H1.
 
   fcf_inline_first.
-    (*   |- context [ Pr [?C] ] => *)
-    (*   let H := fresh "H" in *)
-    (*   assert (Pr [C] == 1) as H; *)
-    (*     [|rewrite H; clear H] *)
-    (* end. *)
-  (* match goal with |- context [S ?x * D] => replace (S x * D)%nat with (x * D + D)%nat by ring end. *)
-  replace (S x * D)%nat with (x * D + D)%nat by ring.
+  replace (S x * random_size eta)%nat with (x * random_size eta + random_size eta)%nat by ring.
   fcf_skip.
   fcf_simp.
   apply evalDist_ret_eq.
   repeat f_equal.
+  cbv [comp_interp_term_fixed interp_term].
   rewrite list_vector_split.
   eapply firstn_ge_all.
   rewrite to_list_length.
   auto.
 
   fcf_inline_first.
-  replace (S y * D)%nat with (y * D + D)%nat by ring.
+  replace (S y * random_size eta)%nat with (y * random_size eta + random_size eta)%nat by ring.
   fcf_skip.
   fcf_simp.
   apply evalDist_ret_eq.
   repeat f_equal.
+  cbv [comp_interp_term_fixed interp_term].
   rewrite list_vector_split.
   symmetry.
   eapply firstn_ge_all.
