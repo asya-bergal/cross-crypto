@@ -5,6 +5,7 @@ Require Import Tactics.
 Require Import FrapTactics.
 Require Import Encryption.
 Require Import SplitVector.
+Require Import TwoWorldsEquiv.
 Require Import Coq.Classes.Morphisms.
 Require Import Coq.Lists.SetoidList.
 
@@ -261,7 +262,6 @@ Section CompInterp.
       (* TODO: insert bounds on coputational complexity of [adv] and [dst] here *)
       let game eta e := universal_security_game l adv dst eta e in
       negligible (fun eta => | Pr[game eta a] -  Pr[game eta b] | ).
-
   Global Instance Reflexive_indist {t} : Reflexive (@indist t).
   Proof.
     cbv [Reflexive indist]; setoid_rewrite ratDistance_same; eauto using negligible_0.
@@ -272,27 +272,101 @@ Section CompInterp.
     cbv [Symmetric indist]; intros; setoid_rewrite ratDistance_comm; eauto.
   Qed.
 
-  Global Instance Transitive_indist {t} : Transitive (@indist t).
+  Delimit Scope term_scope with term.
+
+  Notation "A -> B" := (Type_arrow A B) : term_scope.
+  Notation "A @ B" := (Term_app A B) (at level 99) : term_scope.
+
+  Notation "'rnd' n" := (Term_random n) (at level 35) : term_scope.
+  Notation "'const' c" := (Term_const c) (at level 35) : term_scope.
+
+  Notation s_message := (Type_base BaseType_message).
+  Notation s_bool := (Type_base BaseType_bool).
+
+  Definition s_true : nat -> interp_type interp_base_type s_bool := fun _ => true.
+  Definition s_eqb : nat -> interp_type interp_base_type (s_bool -> s_bool -> s_bool)%term := fun _ => eqb.
+
+  Definition eqwhp (b0 b1 : forall _ : nat, interp_type interp_base_type s_bool) : Prop :=
+    indist (const s_eqb @ (const b0) @ (const b1))%term (const s_true)%term.
+
+  Global Instance Reflexive_eqwhp : Reflexive eqwhp.
   Proof.
-    cbv [Transitive indist]; intros; setoid_rewrite ratTriangleInequality; eauto using negligible_plus.
+    simpl.
+    intros.
+    cbv [Reflexive indist universal_security_game eqwhp s_eqb rand_end].
+    intros.
+    pose proof negligible_const_num 1.
+    apply eq_impl_negligible.
+    intros eta.
+    apply Comp_eq_bool.
+    fcf_well_formed.
+    fcf_well_formed.
+    rewrite Nat.max_0_l.
+    fcf_skip.
+    fcf_skip.
+    apply evalDist_ret_eq.
+    apply f_equal.
+    cbv [comp_interp_term_fixed interp_term s_true].
+    apply eqb_refl.
   Qed.
 
-        (* dst : forall t : type base_type, nat -> list bool -> interp_type interp_base_type t -> bool, *)
-
-  Lemma not_indist_const {t} (x y : nat -> interp_type interp_base_type t) (tEqDec:forall x y : interp_type interp_base_type t, {x=y}+{x<>y}) (typeDec : forall x y : type base_type, {x=y}+{x<>y}) (H:x <> y) : ~indist (Term_const x) (Term_const y).
+  Global Instance Symmetric_eqwhp : Symmetric eqwhp.
   Proof.
-    cbv [indist].
-    intro X.
-  Admitted.
-  (* TODO: This needs to be fixed for the new Term_const constructor *)
-  (*   specialize (X id (fun _ _ _ => nil) *)
-  (*                 ((fun t' => match typeDec t t' with *)
-  (*                          | left pfeq => fun _ _ x' => ltac:( *)
-  (*                                                     rewrite <- pfeq in x'; exact (if tEqDec x x' then true else false)) *)
-  (*                          | right pfne => fun _ _ _ => false *)
-  (*                          end))). *)
+    simpl.
+    intros.
+    cbv [Symmetric indist universal_security_game eqwhp s_eqb rand_end].
+    intros.
+    pose proof negligible_const_num 1.
+    apply eq_impl_negligible.
+    intros eta.
+    apply Comp_eq_bool.
+    fcf_well_formed.
+    fcf_well_formed.
+    rewrite Nat.max_0_l.
+    fcf_skip.
+    fcf_skip.
+    apply evalDist_ret_eq.
+    apply f_equal.
+    cbv [comp_interp_term_fixed interp_term s_true].
 
-  (*   cbv [universal_security_game comp_interp_term interp_term] in X. *)
+    Admitted.
+  (*   specialize (H l adv dst). *)
+  (*   Print eq_impl_negligible. *)
+  (*   apply eq_impl_negligible in H. *)
+  (*   intros eta. *)
+  (*   apply Comp_eq_bool. *)
+
+  (* Qed. *)
+
+
+Lemma indist_rand: forall x y : nat, indist random_size (Term_random x) (Term_random y).
+Proof.
+  cbv [rand_end indist universal_security_game comp_interp_term interp_term]. (* to monadic probability notation *)
+  intros.
+  pose proof negligible_const_num 1.
+  apply eq_impl_negligible.
+  intros eta.
+  apply Comp_eq_bool.
+  fcf_well_formed.
+  fcf_well_formed.
+  dist_swap_l.
+  dist_swap_r.
+  fcf_skip.
+  generalize (random_size eta) as D; intro D.
+
+
+  Context (Encrypt : nat -> interp_type interp_base_type (s_message -> s_message -> s_message -> s_message)%term).
+  Definition eqwhp (a b :  ) : indist (
+  Lemma indist_encrypt
+  (p0 p1 : forall _ : nat, interp_type interp_base_type (Type_base BaseType_message))
+  (r n0 n1: nat)
+  (HNoDup:NoDup (r::n0::n1::nil))
+  : indist (const Encrypt @ (const KeyGen @ (rnd r)) @ (rnd n0) @ (const p0))%term
+           (const Encrypt @ (const KeyGen @ (rnd r)) @ (rnd n1) @ (const p1))%term.
+
+  (* Definition eqwhp (a b : term *)
+(* thing you might wanna do: define [eqwhp] as [indist (decide_eq_bool a b) true], try to prove some lemma like Cong in the latest paper *)
+
   (*   destruct (typeDec t t) in X; [|congruence]. *)
   (*   cbv [eq_rec_r eq_rec eq_rect eq_sym] in X. *)
   (*   replace e with (eq_refl:t=t) in X by admit. *)
@@ -336,20 +410,12 @@ Section CompInterp.
   (*   } *)
   (* Admitted. *)
 
-  Delimit Scope term_scope with term.
-
-  Notation "A -> B" := (Type_arrow A B) : term_scope.
-  Notation "A @ B" := (Term_app A B) (at level 99) : term_scope.
-
-  Notation "'rnd' n" := (Term_random n) (at level 35) : term_scope.
-  Notation "'const' c" := (Term_const c) (at level 35) : term_scope.
-
   (* randomness -> key *)
-  Context (KeyGen : nat -> interp_type interp_base_type (Type_base BaseType_message -> Type_base BaseType_message)%term).
+  Context (KeyGen : nat -> interp_type interp_base_type (s_message -> s_message)%term).
   (* key -> plaintext -> randomness -> ciphertext *)
-  Context (Encrypt : nat -> interp_type interp_base_type (Type_base BaseType_message -> ((Type_base BaseType_message) -> (Type_base BaseType_message -> Type_base BaseType_message)))%term).
+  Context (Encrypt : nat -> interp_type interp_base_type (s_message -> s_message -> s_message -> s_message)%term).
   (* key -> ciphertext -> plaintext *)
-  Context (Decrypt : nat -> interp_type interp_base_type (Type_base BaseType_message -> (Type_base BaseType_message -> Type_base BaseType_message))%term).
+  Context (Decrypt : nat -> interp_type interp_base_type (s_message -> (s_message -> s_message))%term).
 
   Context (admissible_A1: pred_oc_fam).
   Context (admissible_A2: pred_oc_func_2_fam).
@@ -365,25 +431,30 @@ Section CompInterp.
 (*   pose @comp_interp_term. *)
   
 
-  Print Comp.
-
-  Lemma indist_encrypt :
-    forall (p0 p1 : forall _ : nat, interp_type interp_base_type (Type_base BaseType_message)) (n0 n1 : nat),
-      n0 <> n1 -> indist (const Encrypt @ (const KeyGen @ (rnd n0)) @ (const p0))%term (const Encrypt @ (const KeyGen @ (rnd n1)) @ (const p1))%term.
+  Lemma indist_encrypt
+  (p0 p1 : forall _ : nat, interp_type interp_base_type (s_message))
+  (r n0 n1: nat)
+  (HNoDup:NoDup (r::n0::n1::nil))
+  : indist (const Encrypt @ (const KeyGen @ (rnd r)) @ (rnd n0) @ (const p0))%term
+           (const Encrypt @ (const KeyGen @ (rnd r)) @ (rnd n1) @ (const p1))%term.
   Proof.
     cbv [rand_end indist universal_security_game comp_interp_term interp_term].
     intros.
-    apply eq_impl_negligible.
-    intros eta.
-    apply Comp_eq_bool.
-    fcf_well_formed.
-    fcf_well_formed.
-    dist_swap_l.
-    dist_swap_r.
-    fcf_skip.
-    generalize (rand_size eta) as D; intro D.
-    rewrite ?(Max.max_0_l).
-    rewrite ?(Max.max_0_r).
+    (* [ecut] ? *)
+    evar (T1:Type); evar (e1:T1); subst T1.
+    evar (T2:Type); evar (e2:T2); subst T2.
+    evar (T3:Type); evar (e3:T3); subst T3.
+    evar (T4:Type); evar (e4:T4); subst T4.
+    evar (T5:Type); evar (e5:T5); subst T5.
+    evar (T6:Type); evar (e6:T6); subst T6.
+    evar (T7:Type); evar (e7:T7); subst T7.
+    evar (T8:Type); evar (e8:T8); subst T8.
+    evar (eIND:@IND_CPA_SecretKey e1 e2 e3 e4 e5 e6 e7 e8); clearbody eIND.
+    subst e1 e2 e3 e4 e5 e6 e7 e8.
+    cbv[IND_CPA_SecretKey IND_CPA_SecretKey_Advantage] in eIND.
+    (* eapply IND_CPA_SecretKey_equiv in eIND. *)
+
+    (* eapply TwoWorlds_equiv in eIND. *)
 
   (* generalize (random_size eta) as D; intro D. *)
     Admitted.
@@ -405,13 +476,6 @@ Section CompInterp.
 
   (* Check term rand. *)
 
-
-  (* Lemma indist_encrypt : *)
-  (*   forall n (p0 p1 : term Plaintext n) (n0 n1 : nat), *)
-  (*     n0 <> n1 -> *)
-  (*     indist (Term_app (Term_const (Encrypt n)) ((Term_const (KeyGen n))  p0) *)
-  (* Lemma indist_refl {t} (x:term t) : indist x x. *)
-(* End SymbolicProof. *)
 
 
 (** proving soundness of symbolic axioms *)
