@@ -6,165 +6,12 @@ Require Import FrapTactics.
 Require Import Encryption.
 Require Import SplitVector.
 Require Import TwoWorldsEquiv.
+Require Import RatUtil.
+Require Import RewriteUtil.
+Require Import Util.
 Require Import Coq.Classes.Morphisms.
 Require Import Coq.Lists.SetoidList.
-
-(* TODO: move these *)
-Create HintDb rat discriminated.
-Create HintDb ratsimpl discriminated.
-
-Hint Immediate (@reflexivity Rat eqRat _) : rat.
-Hint Immediate (@reflexivity Rat leRat _) : rat.
-
-Lemma maxRat_same r : maxRat r r = r.
-Proof. intros; cbv [maxRat]; destruct (bleRat r r) eqn:?; trivial. Qed.
-Lemma minRat_same r : minRat r r = r.
-Proof. intros; cbv [minRat]; destruct (bleRat r r) eqn:?; trivial. Qed.
-
-Hint Rewrite ratSubtract_0 minRat_same maxRat_same : ratsimpl.
-
-Lemma ratDistance_same r : ratDistance r r == 0.
-Proof. cbv [ratDistance]; autorewrite with ratsimpl; auto with rat. Qed.
-
-Hint Rewrite ratDistance_same : ratsimpl.
-
-
-
-
-
-
-Global Instance Proper_negligible :
-  Proper (pointwise_relation nat eqRat ==> iff) negligible.
-Proof.
-  cbv [pointwise_relation Proper respectful].
-  split; eauto 10 using negligible_eq, (@symmetry _ eqRat _).
-Qed.
-
-Global Instance Proper_negligible_le :
-  Proper (pointwise_relation nat leRat ==> Basics.flip Basics.impl) negligible.
-Proof.
-  cbv [pointwise_relation Proper respectful].
-  intros ? ? ? ?; eauto using negligible_le.
-Qed.
-
-Lemma negligible_0 : negligible (fun _ => 0).
-  eapply negligible_le with (f1 := fun n => 0 / expnat 2 n).
-  { reflexivity. }
-  { apply negligible_const_num. }
-Qed.
-
-
-
-
-
-
-Definition image_relation {T} (R:T->T->Prop) {A} (f:A->T) := fun x y => R (f x) (f y).
-Global Instance Equivalence_image_relation {T R} {Equivalence_R:Equivalence R} {A} (f:A->T) :
-  Equivalence (image_relation R f).
-Proof. destruct Equivalence_R; split; cbv; eauto. Qed.
-
-
-
-
-
-
-
-Definition Distribution_eq {A} := pointwise_relation A eqRat.
-
-Global Instance Equivalence_Distribution_eq {A} : Equivalence (@Distribution_eq A).
-Proof.
-  split; repeat intro; eauto using (@symmetry _ eqRat _), (@transitivity _ eqRat _) with rat.
-Qed.
-
-Definition Comp_eq {A} := image_relation Distribution_eq (@evalDist A).
-Global Instance Equivalence_Comp_eq {A} : Equivalence (@Comp_eq A) := _.
-
-Global Instance Proper_evalDist {A} : Proper (Comp_eq ==> Distribution_eq) (@evalDist A).
-Proof. exact (fun _ _ => id). Qed.
-
-Global Instance Proper_getSupport {A} : Proper (Comp_eq ==> (@Permutation.Permutation _)) (@getSupport A).
-Proof. intros ???; eapply evalDist_getSupport_perm_id; assumption. Qed.
-
-Global Instance Proper_sumList {A:Set} {R:A->A->Prop} : Proper (eqlistA R  ==> (R ==> eqRat) ==> eqRat) (@sumList A).
-Proof.
-  repeat intro. cbv [sumList].
-  rewrite <-!fold_left_rev_right.
-  eapply eqlistA_rev in H.
-  generalize dependent (rev x); generalize dependent (rev y).
-  intros ? ?; induction 1; [reflexivity|].
-  simpl; f_equiv; eauto.
-Qed.
-
-Global Instance Proper_sumList_permutation {A:Set} : Proper ((@Permutation.Permutation A) ==> (Logic.eq ==> eqRat) ==> eqRat) (@sumList A).
-Proof.
-  intros ? ? H; induction H; repeat intro; cbv [respectful] in *; rewrite ?sumList_cons.
-  { eauto with rat. }
-  { f_equiv; eauto. }
-  { repeat rewrite H by reflexivity.
-    repeat rewrite <-ratAdd_assoc.
-    rewrite (ratAdd_comm (y0 y)).
-    f_equiv.
-    eapply (Proper_sumList(R:=Logic.eq)); eauto; reflexivity. }
-  { etransitivity; [eapply IHPermutation1 | eapply IHPermutation2];
-      intros; subst; (try match goal with H1:_ |- _ => eapply H1 end;reflexivity). }
-Qed.
-
-Global Instance Proper_Bind {A B} : Proper (Comp_eq ==> (Logic.eq==>Comp_eq) ==> Comp_eq) (@Bind A B).
-Proof.
-  intros ?? H ?? G ?. simpl evalDist.
-
-  (* TODO: find out why setoid rewrite does not do this *)
-  etransitivity; [|reflexivity].
-  eapply Proper_sumList_permutation.
-  eapply Proper_getSupport.
-  eassumption.
-  intros ? ? ?; subst.
-  f_equiv.
-  { eapply Proper_evalDist. assumption. }
-  { eapply Proper_evalDist. eapply G. reflexivity. }
-Qed.
-
-Lemma Rnd_split_equiv n1 n2 : Comp_eq
-                                (x <-$ { 0 , 1 }^ n1 + n2; ret splitVector n1 n2 x)
-                                (x1 <-$ { 0 , 1 }^ n1; x2 <-$ { 0 , 1 }^ n2; ret (x1, x2)).
-Proof. intro z. eapply Rnd_split_equiv. Qed.
-
-Lemma eq_impl_negligible : forall A (x y : nat -> Comp A), pointwise_relation _ Comp_eq x y -> forall t, negligible (fun eta : nat => | evalDist (x eta) t - evalDist (y eta) t|).
-Admitted.
-
-Lemma Comp_eq_bool (x y:Comp bool) :
-  well_formed_comp x
-  -> well_formed_comp y
-  -> Pr [x] == Pr[y]
-  -> Comp_eq x y.
-  intros.
-  intro b.
-  destruct b; trivial.
-  rewrite !evalDist_complement; trivial.
-  f_equiv; trivial.
-Qed.
-
-Lemma Comp_eq_evalDist A (x y:Comp A) :
-  well_formed_comp x
-  -> well_formed_comp y
-  -> (forall c, evalDist x c == evalDist y c)
-  -> Comp_eq x y.
-  intros.
-  intro b.
-  apply H1.
-Qed.
-
-Lemma list_vector_split a b (T : Set) (x : Vector.t T _) : skipn (b) (Vector.to_list x) = Vector.to_list (snd (splitVector (b) a x)).
-  induction b; simpl; intuition.
-  destruct (splitVector b a (Vector.tl x)) eqn:?.
-  specialize (IHb (Vector.tl x)).
-  rewrite Heqp in IHb.
-  simpl in *.
-  rewrite <- IHb.
-  SearchAbout Vector.hd Vector.tl.
-  rewrite (Vector.eta x).
-  reflexivity.
-Qed.
+Require Import Coq.Lists.ListSet.
 
 Section Language.
   Context {base_type : Set} {interp_base_type:base_type->Set}.
@@ -177,9 +24,10 @@ Section Language.
     | Type_arrow dom cod => interp_type dom -> interp_type cod
     end.
 
-  (* interp term takes in eta, comp_interp_term passes in eta , term should include nat -> *)
-
   Context {message list_message rand : base_type}.
+
+  (* A term is parametrized by its type, which can either be one of the base_types *)
+  (* listed above, or an arrow type consisting of multiple interpreted base_types. *)
   Inductive term : type -> Type :=
   | Term_const {t} (_: nat -> interp_type t) : term t
   | Term_random (_:nat) : term rand
@@ -212,20 +60,25 @@ Arguments term {_} _ _ _ _ _.
 Arguments rand_end [_ _ _ _ _ _] _.
 
 Section CompInterp.
-  Inductive base_type := BaseType_bool | BaseType_message | BaseType_list_message.
+  (* We explicitly distinguish between randomness and a message type *)
+  Inductive base_type := BaseType_bool | BaseType_message | BaseType_list_message | BaseType_rand.
   Definition interp_base_type t :=
     match t with
     | BaseType_bool => bool
     | BaseType_message => list bool
     | BaseType_list_message => list (list bool)
+    | BaseType_rand => list bool
     end.
-  Let term := (term interp_base_type BaseType_message BaseType_list_message BaseType_message).
+
+  Let term := (term interp_base_type BaseType_message BaseType_list_message BaseType_rand).
   
   (* TODO: we aither need to only allow computing base types OR require all types to be finite *)
   Global Instance interp_eqdec : forall {t}, EqDec (interp_type interp_base_type t).
   Admitted.
 
   (* different protocols may use different amounts of randomness at the same security level. this is an awkward and boring parameter *)
+
+  (* TODO: each term rnd should have it's own size as a function of eta, then the max would be adding together bits that everything needs (this will eliminate multiplication) *)
   Context (rand_size : nat -> nat).
 
   Section WithAdversary.
@@ -235,7 +88,7 @@ Section CompInterp.
     Context (distinguisher: forall {t}, nat -> list bool -> interp_type interp_base_type t -> bool).
 
     Definition comp_interp_term_fixed (good_rand_tape evil_rand_tape:list bool) eta {t} (e:term t) :=
-      let interp_random (n:nat) : interp_type interp_base_type (Type_base BaseType_message)
+      let interp_random (n:nat) : interp_type interp_base_type (Type_base BaseType_rand)
           := List.firstn (rand_size eta) (List.skipn (n * rand_size eta) good_rand_tape) in
       let interp_adversarial : interp_type interp_base_type (Type_arrow (Type_base BaseType_list_message) (Type_base BaseType_message))
           := adversary eta evil_rand_tape in
@@ -281,74 +134,106 @@ Section CompInterp.
   Notation "'const' c" := (Term_const c) (at level 35) : term_scope.
 
   Notation s_message := (Type_base BaseType_message).
+  Notation s_rand := (Type_base BaseType_rand).
   Notation s_bool := (Type_base BaseType_bool).
 
-  Definition s_true : nat -> interp_type interp_base_type s_bool := fun _ => true.
-  Definition s_eqb : nat -> interp_type interp_base_type (s_bool -> s_bool -> s_bool)%term := fun _ => eqb.
+  Section Eqwhp.
+    Definition s_true : nat -> interp_type interp_base_type s_bool := fun _ => true.
+    Definition s_eqb : nat -> interp_type interp_base_type (s_bool -> s_bool -> s_bool)%term := fun _ => eqb.
 
-  Definition eqwhp (b0 b1 : forall _ : nat, interp_type interp_base_type s_bool) : Prop :=
-    indist (const s_eqb @ (const b0) @ (const b1))%term (const s_true)%term.
+    Definition eqwhp (b0 b1 : forall _ : nat, interp_type interp_base_type s_bool) : Prop :=
+      indist (const s_eqb @ (const b0) @ (const b1))%term (const s_true)%term.
 
-  Global Instance Reflexive_eqwhp : Reflexive eqwhp.
-  Proof.
-    simpl.
-    intros.
-    cbv [Reflexive indist universal_security_game eqwhp s_eqb rand_end].
-    intros.
-    pose proof negligible_const_num 1.
-    apply eq_impl_negligible.
-    intros eta.
-    apply Comp_eq_bool.
-    fcf_well_formed.
-    fcf_well_formed.
-    rewrite Nat.max_0_l.
-    fcf_skip.
-    fcf_skip.
-    apply evalDist_ret_eq.
-    apply f_equal.
-    cbv [comp_interp_term_fixed interp_term s_true].
-    apply eqb_refl.
-  Qed.
+    Global Instance Reflexive_eqwhp : Reflexive eqwhp.
+    Proof.
+      simpl.
+      intros.
+      cbv [Reflexive indist universal_security_game eqwhp s_eqb rand_end].
+      intros.
+      pose proof negligible_const_num 1.
+      apply eq_impl_negligible.
+      intros eta.
+      apply Comp_eq_bool.
+      fcf_well_formed.
+      fcf_well_formed.
+      rewrite Nat.max_0_l.
+      fcf_skip.
+      fcf_skip.
+      apply evalDist_ret_eq.
+      apply f_equal.
+      cbv [comp_interp_term_fixed interp_term s_true].
+      apply eqb_refl.
+    Qed.
 
-  Global Instance Symmetric_eqwhp : Symmetric eqwhp.
-  Proof.
-    simpl.
-    intros.
-    cbv [Symmetric indist universal_security_game eqwhp s_eqb rand_end].
-    intros.
-    pose proof negligible_const_num 1.
-    apply eq_impl_negligible.
-    intros eta.
-    apply Comp_eq_bool.
-    fcf_well_formed.
-    fcf_well_formed.
-    rewrite Nat.max_0_l.
-    fcf_skip.
-    fcf_skip.
-    apply evalDist_ret_eq.
-    apply f_equal.
-    cbv [comp_interp_term_fixed interp_term s_true].
+    Global Instance Symmetric_eqwhp : Symmetric eqwhp.
+    Proof.
+      simpl.
+      intros.
+      cbv [Symmetric indist universal_security_game eqwhp s_eqb rand_end].
+      intros.
+      pose proof negligible_const_num 1.
+      apply eq_impl_negligible.
+      intros eta.
+      apply Comp_eq_bool.
+      fcf_well_formed.
+      fcf_well_formed.
+      rewrite Nat.max_0_l.
+      fcf_skip.
+      fcf_skip.
+      apply evalDist_ret_eq.
+      apply f_equal.
+      cbv [comp_interp_term_fixed interp_term s_true].
 
     Admitted.
-  (*   specialize (H l adv dst). *)
-  (*   Print eq_impl_negligible. *)
-  (*   apply eq_impl_negligible in H. *)
-  (*   intros eta. *)
-  (*   apply Comp_eq_bool. *)
-
-  (* Qed. *)
+  End Eqwhp.
 
   (* randomness -> key *)
-  Context (KeyGen : nat -> interp_type interp_base_type (s_message -> s_message)%term).
-  (* key -> plaintext -> randomness -> ciphertext *)
-  Context (Encrypt : nat -> interp_type interp_base_type (s_message -> s_message -> s_message -> s_message)%term).
+  Context (KeyGen : nat -> interp_type interp_base_type (s_rand -> s_message)%term).
+  (* key -> randomness -> plaintext -> ciphertext *)
+  Context (Encrypt : nat -> interp_type interp_base_type (s_message -> s_rand -> s_message -> s_message)%term).
   (* key -> ciphertext -> plaintext *)
   Context (Decrypt : nat -> interp_type interp_base_type (s_message -> (s_message -> s_message))%term).
 
   Context (admissible_A1: pred_oc_fam).
   Context (admissible_A2: pred_oc_func_2_fam).
 
+  Fixpoint disjoint A (xl yl : list A) :=
+    match xl with
+    | nil => True
+    | x :: xl => ~ In x yl /\ disjoint A xl yl
+    end.
 
+  Fixpoint rands_in {t} (x : term t) : list nat :=
+    match x with
+      | Term_random n => n :: nil
+      | Term_app func arg => rands_in func ++ rands_in arg
+      | _ => nil
+    end.
+
+  (* Lemma rand_split : forall {dom cod} (func : term (Type_arrow dom cod)) (arg : term dom), *)
+  (*     exists (lfunc larg lshare : list nat), *)
+  (*       NoDup lfunc -> *)
+  (*       NoDup larg -> *)
+  (*       NoDup lshare -> *)
+  (*       disjoint lfunc larg -> *)
+  (*       disjoint larg lshare -> *)
+  (*       disjoint lfunc lshare -> *)
+  (*       length lfunc + length larg + length lshare = rand_end (Term_app func arg) -> *)
+
+
+  (*       Comp_eq  (r <-$ {0, 1} ^ rand_end (Term_app func arg); *)
+  (*                ) *)
+
+
+
+
+    (* Term_app {dom cod} (_:term (Type_arrow dom cod)) (_:term dom) : term cod *)
+    (* If functions take different randomness as direct arguments, you can split up into + *)
+    (* forall (t : term), partition into three sets of randomness, used in a, used in b, used in a + b *)
+(* exists (a, b, c : list nat), (a b c are disjoint, elements are unique, sum of lengths = rand_end t), comp_eq ({0, 1} ^ rand_end t) ( *)
+
+  (* TODO: split good_rand_tape into two separate binds *)
+  (* TODO: p0, p1 are arbitrary terms that cannot include (rnd r) or (rnd n0) *)
   Lemma indist_encrypt
   (p0 p1 : forall _ : nat, interp_type interp_base_type (s_message))
   (r n0 n1: nat)
@@ -356,8 +241,12 @@ Section CompInterp.
   : indist (const Encrypt @ (const KeyGen @ (rnd r)) @ (rnd n0) @ (const p0))%term
            (const Encrypt @ (const KeyGen @ (rnd r)) @ (rnd n1) @ (const p1))%term.
   Proof.
-    cbv [rand_end indist universal_security_game comp_interp_term interp_term].
+    cbv [indist universal_security_game comp_interp_term interp_term].
     intros.
+                                                                                                        (* coq positive map, randomness is map from index to slot *)
+    (* forall (t : term), if two subterms are disjoint, you can partition into two randomnesses *)
+
+    (* , comp_eq ({0, 1} ^ rand_end t) (you can partition rand_end t into n sections/ loop from 0 to n and sum to get the distribution) *)
     (* [ecut] ? *)
     evar (T1:Type); evar (e1:T1); subst T1.
     evar (T2:Type); evar (e2:T2); subst T2.
@@ -370,6 +259,57 @@ Section CompInterp.
     evar (eIND:@IND_CPA_SecretKey e1 e2 e3 e4 e5 e6 e7 e8); clearbody eIND.
     subst e1 e2 e3 e4 e5 e6 e7 e8.
     cbv[IND_CPA_SecretKey IND_CPA_SecretKey_Advantage] in eIND.
+    eapply TwoWorlds_equiv'.
+    admit.
+    admit.
+    cbv [StandardDef_G'].
+    cbv [IND_CPA_SecretKey_G] in eIND.
+    cbv [EncryptOracle] in eIND.
+
+    (* map from randomness index to option randomness *)
+    (* rewrite interpretation function to push randomness down as low as possible by keeping around map with either already generated or not yet generated randomness *)
+    (* prove that two interpretation functions are equal *)
+    (* Lemma rand_split : forall adv evil_rand_tape' eta *)
+    (*                      {dom cod} (func : term (Type_arrow dom cod)) (arg : term dom), *)
+    (*   exists (lfunc larg lshare : list nat), *)
+    (*     NoDup lfunc -> *)
+    (*     NoDup larg -> *)
+    (*     NoDup lshare -> *)
+    (*     disjoint lfunc larg -> *)
+    (*     disjoint larg lshare -> *)
+    (*     disjoint lfunc lshare -> *)
+    (*     length lfunc + length larg + length lshare = rand_end (Term_app func arg) -> *)
+
+
+    (*     Comp_eq (good_rand_tape <-$ {0, 1} ^ rand_end (Term_app func arg); *)
+    (*                ret (comp_interp_term_fixed adv *)
+    (*                                            (Vector.to_list good_rand_tape') *)
+    (*                                            (Vector.to_list evil_rand_tape') *)
+    (*                                            eta *)
+    (*                                            cod *)
+    (*                                            (Term_app func arg))) *)
+    (*             (rshare <-$ {0, 1} ^ length lshare; *)
+    (*                rarg <-$ {0, 1} ^ length larg; *)
+    (*                comp_interp_term_fixed adv *)
+
+
+    (*                arg' <-$ comp_interp_term_fixed adv *)
+    (*                                            (Vector.to_list good_rand_tape') *)
+    (*                                            (Vector.to_list evil_rand_tape') *)
+
+
+
+    (* (* split it, move good_rand_tape generation down as much as possible *) *)
+    (* (* group good_rand_tape + encrypt, good_rand_tape + keygen *) *)
+    (* (* instantiate (e6 := (thing that generates comp, bind in goal with good_rand_tape)) *) *)
+    (* (* A1 -- generate constant *) *)
+    (* (* A2 - everything else *) *)
+
+
+    (* instantiate (e7 := fun _ _ _ _ => True). *)
+    (* instantiate (e8 := fun _ _ _ _ _ _ => True). *)
+    (* cbv beta in eIND. *)
+
     (* eapply IND_CPA_SecretKey_equiv in eIND. *)
 
     (* eapply TwoWorlds_equiv in eIND. *)
@@ -396,19 +336,11 @@ Section SymbolicProof.
   Lemma indist_if_then_else_rand_l (b:term bool) (x y:nat) :
     indist (Term_app (Term_app (Term_app if_then_else b) (Term_random x)) (Term_random y)) (Term_random x).
   Proof. exact (indist_if_then_else_irrelevant_l _ _ _ (indist_rand x y) _). Qed.
-
-  (* Context (Plaintext Ciphertext Key : message). *)
-
-  (* Lemma indist_refl {t} (x:term t) : indist x x. *)
 End SymbolicProof.
 
 Definition if_then_else {t : type base_type}
   : interp_type interp_base_type (Type_arrow (type_base BaseType_bool) (Type_arrow t (Type_arrow t t)))
   := fun (b : bool) (x y : interp_type interp_base_type t) => if b then x else y.
-(* Lemma Comp_eq_impl_evalDist A (x y : Comp A): *)
-(*   Comp_eq x y -> *)
-(*   evalDist *)
-Print Distribution.
 
 Axiom random_size : nat -> nat.
 
@@ -427,13 +359,13 @@ Proof.
   fcf_skip.
 
   assert (Pr [c <-$ (d <-$ (a <-$ { 0 , 1 }^ x * random_size eta + random_size eta; ret (splitVector (x * random_size eta) (random_size eta) a)); ret snd d);
-              ret dst (Type_base BaseType_message) eta (Vector.to_list x0) (Vector.to_list c) ] ==
+              ret dst (Type_base BaseType_rand) eta (Vector.to_list x0) (Vector.to_list c) ] ==
           Pr [c <-$ (d <-$ (a <-$ { 0 , 1 }^ y * random_size eta + random_size eta; ret (splitVector (y * random_size eta) (random_size eta) a)); ret snd d);
-              ret dst (Type_base BaseType_message) eta (Vector.to_list x0) (Vector.to_list c) ] ).
+              ret dst (Type_base BaseType_rand) eta (Vector.to_list x0) (Vector.to_list c) ] ).
   {
     fcf_skip.
     match goal with |- evalDist ?C1 ?x == evalDist ?C2 ?x => generalize x; change (Comp_eq C1 C2) end.
-    setoid_rewrite Rnd_split_equiv.
+    setoid_rewrite Rnd_split_eq.
     apply Comp_eq_evalDist.
     {
       fcf_well_formed.
