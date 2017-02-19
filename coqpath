@@ -1,2 +1,2 @@
 #!/bin/sh
-env COQPATH="$(pwd)/fcf/src/FCF${COQPATH:+:}$COQPATH" $@
+env COQPATH="$(pwd)/fcf/src${COQPATH:+:}$COQPATH" $@

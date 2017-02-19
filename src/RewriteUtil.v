@@ -1,5 +1,5 @@
-Require Import FCF.
-Require Import Asymptotic.
+Require Import FCF.FCF.
+Require Import FCF.Asymptotic.
 Require Import RatUtil.
 Require Import Coq.Lists.SetoidList.
 

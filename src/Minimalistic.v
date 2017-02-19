@@ -1,11 +1,11 @@
-Require Import FCF.
-Require Import Asymptotic.
-Require Import Admissibility.
+Require Import FCF.FCF.
+Require Import FCF.Asymptotic.
+Require Import FCF.Admissibility.
 Require Import Tactics.
 Require Import FrapTactics.
-Require Import Encryption.
-Require Import SplitVector.
-Require Import TwoWorldsEquiv.
+Require Import FCF.Encryption.
+Require Import FCF.SplitVector.
+Require Import FCF.TwoWorldsEquiv.
 Require Import RatUtil.
 Require Import RewriteUtil.
 Require Import Util.
@@ -259,12 +259,14 @@ Section CompInterp.
     evar (eIND:@IND_CPA_SecretKey e1 e2 e3 e4 e5 e6 e7 e8); clearbody eIND.
     subst e1 e2 e3 e4 e5 e6 e7 e8.
     cbv[IND_CPA_SecretKey IND_CPA_SecretKey_Advantage] in eIND.
+    (* 
     eapply TwoWorlds_equiv'.
     admit.
     admit.
     cbv [StandardDef_G'].
     cbv [IND_CPA_SecretKey_G] in eIND.
     cbv [EncryptOracle] in eIND.
+     *) 
 
     (* map from randomness index to option randomness *)
     (* rewrite interpretation function to push randomness down as low as possible by keeping around map with either already generated or not yet generated randomness *)
@@ -342,9 +344,7 @@ Definition if_then_else {t : type base_type}
   : interp_type interp_base_type (Type_arrow (type_base BaseType_bool) (Type_arrow t (Type_arrow t t)))
   := fun (b : bool) (x y : interp_type interp_base_type t) => if b then x else y.
 
-Axiom random_size : nat -> nat.
-
-Lemma indist_rand: forall x y : nat, indist random_size (Term_random x) (Term_random y).
+Lemma indist_rand random_size (x y : nat) : indist random_size (Term_random x) (Term_random y).
 Proof.
   cbv [rand_end indist universal_security_game comp_interp_term interp_term]. (* to monadic probability notation *)
   intros.

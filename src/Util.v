@@ -1,5 +1,5 @@
-Require Import FCF.
-Require Import SplitVector.
+Require Import FCF.FCF.
+Require Import FCF.SplitVector.
 Require Import RewriteUtil.
 
 Lemma Rnd_split_eq n1 n2 : Comp_eq

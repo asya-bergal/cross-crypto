@@ -1,4 +1,4 @@
-Require Import FCF.
+Require Import FCF.FCF.
 Require Import Coq.Classes.Morphisms.
 
 Create HintDb rat discriminated.
