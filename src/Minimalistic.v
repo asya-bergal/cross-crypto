@@ -186,6 +186,34 @@ Section Language.
     Admitted.
   End LateInterp.
 
+  Fixpoint fresh r {t} (e: term t) : Prop :=
+    match e with
+    | Term_random idx => idx = r
+    | Term_app func arg => fresh r func /\ fresh r arg
+    | _ => True
+    end.
+  (* interp term of (rand to T) of term rand *)
+
+  Section OTP.
+    Definition T' := interp_type message.
+    Hypothesis T'_EqDec : forall (eta : nat), EqDec (T' eta).
+    Variable RndT'_symbolic : forall (eta : nat), interp_type rand eta -> T' eta. 
+    Definition RndT' := fun (eta : nat) => x <-$ {0,1}^(len_rand eta);
+                                        ret (RndT'_symbolic eta (cast_rand eta x)).
+    Variable T_op' : forall (eta : nat), interp_type (message -> message -> message)%term eta.
+    Hypothesis op_assoc' : forall (eta : nat), forall x y z, T_op' eta (T_op' eta x y) z = T_op' eta x (T_op' eta y z).
+    Variable T_inverse' : forall (eta : nat), interp_type(message -> message)%term eta. 
+    Variable T_ident' : forall (eta : nat), T' eta.
+    Hypothesis inverse_l_ident' : forall (eta : nat), forall x, T_op' eta (T_inverse' eta x) x = T_ident' eta.
+    Hypothesis inverse_r_ident' : forall (eta : nat), forall x, T_op' eta x (T_inverse' eta x) = T_ident' eta.
+    Hypothesis ident_l : forall (eta : nat), forall x, (T_op' eta) (T_ident' eta) x = x.
+    Hypothesis ident_r : forall (eta : nat), forall x, (T_op' eta) x (T_ident' eta) = x.
+    Hypothesis RndT_uniform : forall (eta : nat), forall x y, comp_spec (fun a b => a = x <-> b = y) (RndT' eta) (RndT' eta).
+
+    (* Theorem symbolic_OTP : forall (x : T) (n : positive), indist (rnd n) (const  @ x @ (RndT' (rnd n)))%term. *)
+
+  End OTP.
+
   Lemma indist_rand (x y:positive) : indist (rnd x) (rnd y).
   Proof.
     cbv [indist]; intros.
