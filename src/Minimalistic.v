@@ -198,7 +198,7 @@ Section Language.
   Section OTP.
     Definition T' := interp_type message.
     Hypothesis T'_EqDec : forall (eta : nat), EqDec (T' eta).
-    Variable RndT'_symbolic : forall (eta : nat), interp_type rand eta -> T' eta. 
+    Variable RndT'_symbolic : forall (eta : nat), interp_type (rand -> message) eta. 
     Definition RndT' := fun (eta : nat) => x <-$ {0,1}^(len_rand eta);
                                         ret (RndT'_symbolic eta (cast_rand eta x)).
     Variable T_op' : forall (eta : nat), interp_type (message -> message -> message)%term eta.
@@ -215,7 +215,8 @@ Section Language.
       : forall (x : T' eta), comp_spec eq (RndT' eta) (r <-$ RndT' eta; ret T_op' eta x r)
       := @OTP_inf_th_sec_l (T' eta) _ (RndT' eta) (T_op' eta) (op_assoc' eta) (T_inverse' eta) (T_ident' eta) (inverse_l_ident' eta) (inverse_r_ident' eta) (ident_l eta) (RndT_uniform eta).
 
-    (* Theorem symbolic_OTP : forall (x : T) (n : positive), indist (rnd n) (const  @ x @ (RndT' (rnd n)))%term. *)
+    Theorem symbolic_OTP : forall (n : positive) (x : forall (eta : nat), T' eta), indist (const RndT'_symbolic @ (rnd n)) (const T_op' @ const x @ (const RndT'_symbolic @ (rnd n)))%term.
+    Admitted.
 
   End OTP.
 
