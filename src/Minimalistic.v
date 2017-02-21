@@ -168,14 +168,17 @@ Section Language.
           ret (f x)
       end.
     Lemma interp_term_late_correct' {t} (e:term t) eta :
-      forall adv idxs (H:(*TODO*)True),
-      Comp_eq (rands <-$ generate_randomness idxs eta;
+      forall adv shared univ (H:PositiveSet.Subset (randomness_indices e) univ),
+      Comp_eq (rands <-$ generate_randomness shared eta;
                  interp_term_late e eta adv rands)
-              (rands <-$ generate_randomness idxs eta;
+              (rands <-$ generate_randomness univ eta;
                  ret (interp_term_fixed e eta adv rands)).
     Proof.
       induction e; intros;
         simpl interp_term_late; simpl interp_term_fixed.
+      { rewrite 2Bind_unused. reflexivity. }
+      { admit. }
+      { admit. }
     Admitted.
     Lemma interp_term_late_correct {t} (e:term t) eta adv :
       Comp_eq (interp_term_late e eta adv (PositiveMap.empty _)) (interp_term e eta adv).
