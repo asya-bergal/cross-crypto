@@ -216,6 +216,9 @@ Section Language.
       := @OTP_inf_th_sec_l (T' eta) _ (RndT' eta) (T_op' eta) (op_assoc' eta) (T_inverse' eta) (T_ident' eta) (inverse_l_ident' eta) (inverse_r_ident' eta) (ident_l eta) (RndT_uniform eta).
 
     Theorem symbolic_OTP : forall (n : positive) (x : forall (eta : nat), T' eta), indist (const RndT'_symbolic @ (rnd n)) (const T_op' @ const x @ (const RndT'_symbolic @ (rnd n)))%term.
+    Proof.
+      cbv [indist universal_security_game]; intros.
+      (* setoid_rewrite interp_term_late_correct. *)
     Admitted.
 
   End OTP.
