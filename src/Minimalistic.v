@@ -6,6 +6,7 @@ Require Import FrapTactics.
 Require Import FCF.Encryption.
 Require Import FCF.SplitVector.
 Require Import FCF.TwoWorldsEquiv.
+Require Import FCF.OTP.
 Require Import RatUtil.
 Require Import RewriteUtil.
 Require Import Util.
@@ -209,6 +210,10 @@ Section Language.
     Hypothesis ident_l : forall (eta : nat), forall x, (T_op' eta) (T_ident' eta) x = x.
     Hypothesis ident_r : forall (eta : nat), forall x, (T_op' eta) x (T_ident' eta) = x.
     Hypothesis RndT_uniform : forall (eta : nat), forall x y, comp_spec (fun a b => a = x <-> b = y) (RndT' eta) (RndT' eta).
+
+    Let comp_spec_otp_l eta
+      : forall (x : T' eta), comp_spec eq (RndT' eta) (r <-$ RndT' eta; ret T_op' eta x r)
+      := @OTP_inf_th_sec_l (T' eta) _ (RndT' eta) (T_op' eta) (op_assoc' eta) (T_inverse' eta) (T_ident' eta) (inverse_l_ident' eta) (inverse_r_ident' eta) (ident_l eta) (RndT_uniform eta).
 
     (* Theorem symbolic_OTP : forall (x : T) (n : positive), indist (rnd n) (const  @ x @ (RndT' (rnd n)))%term. *)
 
