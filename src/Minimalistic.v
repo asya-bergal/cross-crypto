@@ -15,6 +15,7 @@ Require Import Coq.Lists.ListSet.
 Require Import Coq.MSets.MSetPositive.
 Require Import Coq.FSets.FMapPositive.
 Require Import Coq.FSets.FMapFacts.
+Require Import Coq.FSets.FSetFacts.
 Module PositiveMapFacts := FMapFacts.WFacts_fun PositiveMap.E PositiveMap.
 Module PositiveMapProperties := FMapFacts.WProperties_fun PositiveMap.E PositiveMap.
 
@@ -166,6 +167,16 @@ Section Language.
           f <-$ interp_term_late f eta adv rands;
           ret (f x)
       end.
+    Lemma interp_term_late_correct' {t} (e:term t) eta :
+      forall adv idxs (H:(*TODO*)True),
+      Comp_eq (rands <-$ generate_randomness idxs eta;
+                 interp_term_late e eta adv rands)
+              (rands <-$ generate_randomness idxs eta;
+                 ret (interp_term_fixed e eta adv rands)).
+    Proof.
+      induction e; intros;
+        simpl interp_term_late; simpl interp_term_fixed.
+    Admitted.
     Lemma interp_term_late_correct {t} (e:term t) eta adv :
       Comp_eq (interp_term_late e eta adv (PositiveMap.empty _)) (interp_term e eta adv).
       (* this form is not strong enough for induction *)
