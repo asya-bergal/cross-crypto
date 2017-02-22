@@ -163,27 +163,34 @@ Section Language.
         ctx <-$ interp_term_late ctx eta adv fixed_rand; ret (adv ctx)
       | Term_app f x => 
         common_rand <-$ generate_randomness (PositiveSet.inter (randomness_indices x) (randomness_indices f)) eta;
-          rands <- PositiveMapProperties.update common_rand fixed_rand;
+          let rands := PositiveMapProperties.update common_rand fixed_rand in
           x <-$ interp_term_late x eta adv rands;
           f <-$ interp_term_late f eta adv rands;
           ret (f x)
       end.
+
     Lemma interp_term_late_correct' {t} (e:term t) eta :
-      forall adv shared univ (H:PositiveSet.Subset (randomness_indices e) univ),
-      Comp_eq (rands <-$ generate_randomness shared eta;
-                 interp_term_late e eta adv rands)
+      forall adv univ (H:PositiveSet.Subset (randomness_indices e) univ) fixed,
+      Comp_eq (interp_term_late e eta adv fixed)
               (rands <-$ generate_randomness univ eta;
-                 ret (interp_term_fixed e eta adv rands)).
+                 ret (interp_term_fixed e eta adv (PositiveMapProperties.update rands fixed))).
     Proof.
       induction e; intros;
         simpl interp_term_late; simpl interp_term_fixed.
-      { rewrite 2Bind_unused. reflexivity. }
+      { rewrite Bind_unused. reflexivity. }
       { admit. }
       { admit. }
+      { 
     Admitted.
     Lemma interp_term_late_correct {t} (e:term t) eta adv :
-      Comp_eq (interp_term_late e eta adv (PositiveMap.empty _)) (interp_term e eta adv).
-      (* this form is not strong enough for induction *)
+      Comp_eq (interp_term_late e eta adv (PositiveMap.empty _))
+              (interp_term e eta adv).
+      induction e; intros. admit. admit. admit.
+      simpl.
+      cbv [interp_term].
+      simpl.
+      eapply Proper_Bind.
+      (* this form is not strong enough for induction? *)
     Admitted.
   End LateInterp.
 
