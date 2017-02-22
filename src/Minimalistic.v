@@ -14,11 +14,14 @@ Require Import Coq.Classes.Morphisms.
 Require Import Coq.Lists.SetoidList.
 Require Import Coq.Lists.ListSet.
 Require Import Coq.MSets.MSetPositive.
+Require Import Coq.MSets.MSetProperties.
 Require Import Coq.FSets.FMapPositive.
 Require Import Coq.FSets.FMapFacts.
 Require Import Coq.FSets.FSetFacts.
 Module PositiveMapFacts := FMapFacts.WFacts_fun PositiveMap.E PositiveMap.
 Module PositiveMapProperties := FMapFacts.WProperties_fun PositiveMap.E PositiveMap.
+Print PositiveSet.E.
+Module PositiveSetProperties := MSetProperties.WPropertiesOn PositiveSet.E MSetPositive.PositiveSet.
 
 Lemma Bind_unused A B (a:Comp A) (b:Comp B) :
   Comp_eq (_ <-$ a; b) b.
@@ -40,8 +43,8 @@ Section Language.
   Bind Scope term_scope with type.
   Notation "A -> B" := (Type_arrow A B) : term_scope.
 
-  Context {bool message list_message rand : base_type}
-          {true false:forall eta, interp_type bool eta}.
+  Context {sbool message list_message rand : base_type}
+          {strue sfalse:forall eta, interp_type sbool eta}.
   (* we would need a dependently typed map data structure for dependently typed randomness *)
 
   (* A term is parametrized by its type, which can either be one of the base_types *)
@@ -65,7 +68,7 @@ Section Language.
   Global Instance randomness_map_eq_dec {eta} : EqDec (PositiveMap.t (interp_type rand eta)). Admitted.
   Context (len_rand : forall eta:nat, nat)
           (cast_rand : forall eta, Bvector (len_rand eta) -> interp_type rand eta).
-  Definition generate_randomness idxs (eta:nat)
+  Definition generate_randomness (eta:nat) idxs
     : Comp (PositiveMap.t (interp_type rand eta))
     := PositiveSet.fold (fun i rndC => (
                              rnds' <-$ rndC;
@@ -90,7 +93,7 @@ Section Language.
   Definition interp_term {t} (e:term t) (eta:nat)
              (adv: interp_type list_message eta -> interp_type message eta)
     : Comp (interp_type t eta)
-    := rands <-$ generate_randomness (randomness_indices e) eta; ret (interp_term_fixed e eta adv rands).
+    := rands <-$ generate_randomness eta (randomness_indices e); ret (interp_term_fixed e eta adv rands).
 
   Section Security.
     (* the adversary is split into three parts for no particular reason. It first decides how much randomness it will need, then interacts with the protocol (repeated calls to [adverary] with all messages up to now as input), and then tries to claim victory ([distinguisher]). There is no explicit sharing of state between these procedures, but all of them get the same random inputs in the security game. The handling of state is a major difference between FCF [OracleComp] and this framework *)
@@ -119,13 +122,13 @@ Section Language.
     Qed.
   End Security.
 
-  Definition whp (e:term bool) := indist e (const true).
+  Definition whp (e:term sbool) := indist e (const strue).
 
   Section Equality.
-    Definition const_eqb t : term (t -> t -> bool) :=
+    Definition const_eqb t : term (t -> t -> sbool) :=
       @Term_const
-        (Type_arrow t (Type_arrow t (Type_base bool)))
-        (fun eta x1 x2 => if eqb x1 x2 then true eta else false eta).
+        (Type_arrow t (Type_arrow t (Type_base sbool)))
+        (fun eta x1 x2 => if eqb x1 x2 then strue eta else sfalse eta).
     Definition eqwhp {t:type} (e1 e2:term t) : Prop := whp (const_eqb t @ e1 @ e2)%term.
 
     Global Instance Reflexive_eqwhp {t} : Reflexive (@eqwhp t).
@@ -139,7 +142,7 @@ Section Language.
       { eapply Proper_Bind; [reflexivity|]; intros ? ? ?; subst.
         (* TODO: why can't we do this earlier (under binders) using setoid_rewrite? *)
         rewrite eqb_refl.
-        instantiate (1:=fun _ => ret true eta); cbv beta.
+        instantiate (1:=fun _ => ret strue eta); cbv beta.
         reflexivity. }
       rewrite 2Bind_unused.
       reflexivity.
@@ -162,7 +165,7 @@ Section Language.
       | Term_adversarial ctx =>
         ctx <-$ interp_term_late ctx eta adv fixed_rand; ret (adv ctx)
       | Term_app f x => 
-        common_rand <-$ generate_randomness (PositiveSet.inter (randomness_indices x) (randomness_indices f)) eta;
+        common_rand <-$ generate_randomness eta (PositiveSet.inter (randomness_indices x) (randomness_indices f));
           rands <- PositiveMapProperties.update common_rand fixed_rand;
           x <-$ interp_term_late x eta adv rands;
           f <-$ interp_term_late f eta adv rands;
@@ -170,9 +173,9 @@ Section Language.
       end.
     Lemma interp_term_late_correct' {t} (e:term t) eta :
       forall adv shared univ (H:PositiveSet.Subset (randomness_indices e) univ),
-      Comp_eq (rands <-$ generate_randomness shared eta;
+      Comp_eq (rands <-$ generate_randomness eta shared;
                  interp_term_late e eta adv rands)
-              (rands <-$ generate_randomness univ eta;
+              (rands <-$ generate_randomness eta univ;
                  ret (interp_term_fixed e eta adv rands)).
     Proof.
       induction e; intros;
@@ -215,7 +218,60 @@ Section Language.
       : forall (x : T' eta), comp_spec eq (RndT' eta) (r <-$ RndT' eta; ret T_op' eta x r)
       := @OTP_inf_th_sec_l (T' eta) _ (RndT' eta) (T_op' eta) (op_assoc' eta) (T_inverse' eta) (T_ident' eta) (inverse_l_ident' eta) (inverse_r_ident' eta) (ident_l eta) (RndT_uniform eta).
 
+    Lemma Comp_eq_evalDist A (x y:Comp A) :
+      well_formed_comp x
+      -> well_formed_comp y
+      -> (forall c, evalDist x c == evalDist y c)
+      -> Comp_eq x y.
+      intros.
+      intro b.
+      apply H1.
+    Qed.
+
+    (* forall x y, A x y ==> B (f x) (f y) *)
+    (* Proper PositiveSetEq CompEq generate_randomness *)
+
+    Print Comp_eq.
+
+    (* Definition weird_eq := fun (A : Set) (c1 c2 : Comp A) => Comp_eq c1 c2. *)
+    Global Instance Proper_PosSetEq (eta : nat) :
+      Proper (PositiveSet.Equal ==> Comp_eq) (generate_randomness eta).
+    Admitted.
+
     Theorem symbolic_OTP : forall (n : positive) (x : forall (eta : nat), T' eta), indist (const RndT'_symbolic @ (rnd n)) (const T_op' @ const x @ (const RndT'_symbolic @ (rnd n)))%term.
+    Proof.
+      cbv [indist universal_security_game]; intros.
+      apply eq_impl_negligible; cbv [pointwise_relation]; intros eta.
+      specialize (comp_spec_otp_l eta (x eta)).
+      assert (forall y, evalDist (RndT' eta) y == evalDist (r <-$ RndT' eta; ret T_op' eta (x eta) r) y).
+      eapply comp_spec_eq_impl_eq.
+      assumption.
+      apply Comp_eq_evalDist.
+      { admit. }
+      { admit. }
+      {
+        intros.
+        fcf_skip.
+        cbv [RndT'] in H.
+        cbv [interp_term interp_term_fixed randomness_indices].
+
+        assert (PositiveSet.Equal (PositiveSet.union PositiveSet.empty (PositiveSet.singleton n)) (PositiveSet.singleton n)).
+        apply PositiveSetProperties.empty_union_1.
+        apply PositiveSetProperties.empty_is_empty_2.
+        apply PositiveSetProperties.equal_refl.
+
+        About PositiveSetProperties.empty_union_1.
+        eapply PositiveSetProperties.empty_union_1.
+        eapply (PositiveSetProperties.empty_union_1.
+        Print PositiveSetProperties.In_dec.
+
+        rewrite .empty_union_1.
+
+
+
+        (* pull out randomness and then casting and then symbolicizing it is the same as *)
+        (* pull out randomnes, cast, symbolicize, call top on it and x *)
+
     Admitted.
 
   End OTP.
