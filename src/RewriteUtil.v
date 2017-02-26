@@ -98,56 +98,39 @@ Lemma Comp_eq_bool (x y:Comp bool) :
 Qed.
 
 Lemma Comp_eq_evalDist A (x y:Comp A) :
-  well_formed_comp x
-  -> well_formed_comp y
-  -> (forall c, evalDist x c == evalDist y c)
+  (forall c, evalDist x c == evalDist y c)
   -> Comp_eq x y.
-  intros.
-  intro b.
-  apply H1.
+  cbv [Comp_eq Distribution_eq pointwise_relation image_relation].
+  intro.
+  assumption.
 Qed.
 
 Lemma Bind_unused A B (a:Comp A) (b:Comp B) :
   Comp_eq (_ <-$ a; b) b.
 Admitted. (* TODO: does FCF have something like this? *)
 
-(* Print EqDec. *)
-(* Print eq_dec. *)
 Lemma Comp_eq_left_ident (A B: Set) (H: EqDec A) (H': EqDec B) (x: A) (f: A -> Comp B):
-  (forall a:A, well_formed_comp (f a)) ->
   Comp_eq (x' <-$ ret x; f x') (f x).
 Proof.
-  intros.
   apply Comp_eq_evalDist.
-  fcf_well_formed.
-  apply H0.
   intros.
-  fcf_to_prhl_eq.
-  apply comp_spec_left_ident.
+  apply evalDist_left_ident_eq.
 Qed.
 
 Lemma Comp_eq_right_ident (A : Set) (H: EqDec A) (cA : Comp A) :
-  well_formed_comp cA ->
   Comp_eq (x <-$ cA; ret x) cA.
 Proof.
-  intros.
   apply Comp_eq_evalDist.
-  fcf_well_formed.
-  assumption.
   intros.
-  fcf_to_prhl_eq.
-  apply comp_spec_right_ident.
+  apply evalDist_right_ident.
 Qed.
 
-Lemma Comp_eq_associativty (A B C: Set) (H : EqDec A) (cA : Comp A)
+Lemma Comp_eq_associativity (A B C: Set) (H : EqDec A) (cA : Comp A)
       (f : A -> Comp B) (g : B -> Comp C) :
-  well_formed_comp cA ->
-  (forall a:A, well_formed_comp (f a)) ->
-  (forall b:B, well_formed_comp (g b)) ->
   Comp_eq (x <-$ cA; y <-$ f x; g y) (y <-$ (x <-$ cA; f x); g y).
 Proof.
   intros.
-  apply Comp_eq_evalDist; fcf_well_formed.
+  apply Comp_eq_evalDist.
   intros.
   fcf_inline_first.
   reflexivity.
