@@ -2,7 +2,7 @@ MOD_NAME := CrossCrypto
 SRC_DIR  := src
 
 .PHONY: coq
-coq: Makefile.coq
+coq: Makefile.coq fcf
 	./coqpath $(MAKE) -f Makefile.coq
 
 Makefile.coq: Makefile _CoqProject
