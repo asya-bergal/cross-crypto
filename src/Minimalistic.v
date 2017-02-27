@@ -336,9 +336,26 @@ Section Language.
         intros.
         fcf_at fcf_ret fcf_left 1%nat.
         fcf_at fcf_ret fcf_right 1%nat.
-        SearchAbout PositiveMap.find.
         apply Comp_eq_evalDist.
-        (* rewrite PositiveMapProperties.F.add_eq_o. *)
+
+        (* WHY does setoid_rewrite not work here? For now, inline the rewriting... *)
+        etransitivity.
+        eapply Proper_Bind. reflexivity. cbv [respectful]. intros. subst.
+        setoid_rewrite PositiveMapProperties.F.add_eq_o; [|reflexivity].
+        match goal with |- ?R ?LHS ?RHS =>
+                        match (eval pattern y in LHS) with
+                          ?LHS' _ => eapply (reflexivity (LHS' y))
+                        end
+        end.
+
+        etransitivity. Focus 2. {
+        eapply Proper_Bind. reflexivity. cbv [respectful]. intros. subst. symmetry.
+        setoid_rewrite PositiveMapProperties.F.add_eq_o; [|reflexivity].
+        match goal with |- ?R ?LHS ?RHS =>
+                        match (eval pattern y in LHS) with
+                          ?LHS' _ => eapply (reflexivity (LHS' y))
+                        end
+        end. } Unfocus.
 
       (* If the first part of the bind is Comp_eq and the second part is the same, the whole thing is Comp_eq. *)
       (* assert (Comp_eq *)
