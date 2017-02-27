@@ -99,10 +99,10 @@ Qed.
 
 Lemma Comp_eq_evalDist A (x y:Comp A) :
   (forall c, evalDist x c == evalDist y c)
-  -> Comp_eq x y.
-  cbv [Comp_eq Distribution_eq pointwise_relation image_relation].
-  intro.
-  assumption.
+  <-> Comp_eq x y.
+  split; intro.
+  { cbv [Comp_eq Distribution_eq pointwise_relation image_relation]; assumption. }
+  { cbv [Comp_eq Distribution_eq pointwise_relation image_relation] in H; assumption. }
 Qed.
 
 Lemma Bind_unused A B (a:Comp A) (b:Comp B) :
@@ -134,4 +134,13 @@ Proof.
   intros.
   fcf_inline_first.
   reflexivity.
+Qed.
+
+Lemma Comp_eq_swap : forall (A B : Set)(c1 : Comp A)(c2 : Comp B)(C : Set)(c3 : A -> B -> Comp C),
+  Comp_eq (a <-$ c1; b <-$ c2; (c3 a b)) (b <-$ c2; a <-$ c1; (c3 a b)). 
+Proof.
+  intros.
+  apply Comp_eq_evalDist.
+  intros.
+  apply evalDist_commute_eq.
 Qed.

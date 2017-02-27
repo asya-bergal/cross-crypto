@@ -23,9 +23,13 @@ Module PositiveMapProperties := FMapFacts.WProperties_fun PositiveMap.E Positive
 Print PositiveSet.E.
 Module PositiveSetProperties := MSetProperties.WPropertiesOn PositiveSet.E MSetPositive.PositiveSet.
 
-Lemma Bind_unused A B (a:Comp A) (b:Comp B) :
-  Comp_eq (_ <-$ a; b) b.
-Admitted. (* TODO: does FCF have something like this? *)
+Section TODO.
+
+Lemma PosMap_add_commutes : forall (x y : positive) (H : x <> y) (elt : Type) (m : PositiveMap.t elt) (A B : elt),
+  PositiveMap.add x A (PositiveMap.add y B m) = PositiveMap.add y B (PositiveMap.add x A m).
+Admitted.
+
+End TODO.
 
 Section Language.
   Context {base_type : Set}
@@ -77,6 +81,67 @@ Section Language.
                            )%comp)
                         idxs
                         (ret (PositiveMap.empty _)).
+
+  Lemma singleton_randomness : forall (eta : nat) (n : positive),
+      Comp_eq (generate_randomness eta (PositiveSet.singleton n))
+              (ri <-$ {0,1}^(len_rand eta);
+                 ret (PositiveMap.add n (cast_rand eta ri) (PositiveMap.empty _))).
+    intros.
+    cbv [generate_randomness PositiveSet.singleton].
+    rewrite PositiveSetProperties.fold_add.
+    {
+      rewrite PositiveSetProperties.fold_empty.
+      rewrite Comp_eq_left_ident.
+      { reflexivity. }
+      { admit. }
+    }
+    { admit. }
+    {
+      cbv [Proper respectful Distribution_eq pointwise_relation RelCompFun].
+      intros.
+      rewrite H.
+      assert (Comp_eq x0 y0).
+      apply Comp_eq_evalDist.
+      assumption.
+      generalize a.
+      apply Comp_eq_evalDist.
+      setoid_rewrite H1.
+      reflexivity.
+    }
+    {
+      cbv [transpose Distribution_eq pointwise_relation RelCompFun].
+      intros.
+      (* TODO: Make these all tactics you can perform on Comp_eqs + ask andres about this *)
+      fcf_inline_first.
+      fcf_skip.
+      fcf_inline_first.
+      fcf_at fcf_swap fcf_left 1%nat.
+      fcf_at fcf_swap fcf_right 1%nat.
+      fcf_at fcf_ret fcf_left 2%nat.
+      fcf_at fcf_ret fcf_right 2%nat.
+      apply Comp_eq_evalDist.
+      destruct (Pos.eq_dec x y).
+      { rewrite e; reflexivity. }
+      {
+        remember (PosMap_add_commutes x y n0 (interp_type rand eta) x0) as comm.
+        assert (evalDist
+          (a0 <-$ { 0 , 1 }^ len_rand eta;
+             a1 <-$ { 0 , 1 }^ len_rand eta;
+             ret PositiveMap.add y (cast_rand eta a0) (PositiveMap.add x (cast_rand eta a1) x0)) a ==
+                evalDist
+          (a0 <-$ { 0 , 1 }^ len_rand eta;
+             a1 <-$ { 0 , 1 }^ len_rand eta;
+             ret PositiveMap.add y (cast_rand eta a1) (PositiveMap.add x (cast_rand eta a0) x0)) a).
+        {
+          fcf_at fcf_swap fcf_right 0%nat.
+          reflexivity.
+        }
+        (* TODO: Do this rewrite under a bind. *)
+        { admit. }
+      }
+    }
+    { cbv [not]; apply (PositiveSetProperties.Dec.F.empty_iff n). }
+  Admitted.
 
   Context (unreachable:forall {i}, Bvector (len_rand i)).
   Global Instance EqDec_interp_type : forall t eta, EqDec (interp_type t eta). Admitted. (* TODO: functional extensionality? *)
@@ -225,20 +290,8 @@ Section Language.
       : forall (x : T' eta), comp_spec eq (RndT' eta) (r <-$ RndT' eta; ret T_op' eta x r)
       := @OTP_inf_th_sec_l (T' eta) _ (RndT' eta) (T_op' eta) (op_assoc' eta) (T_inverse' eta) (T_ident' eta) (inverse_l_ident' eta) (inverse_r_ident' eta) (ident_l eta) (RndT_uniform eta).
 
-    Lemma Comp_eq_evalDist A (x y:Comp A) :
-      well_formed_comp x
-      -> well_formed_comp y
-      -> (forall c, evalDist x c == evalDist y c)
-      -> Comp_eq x y.
-      intros.
-      intro b.
-      apply H1.
-    Qed.
-
     (* forall x y, A x y ==> B (f x) (f y) *)
     (* Proper PositiveSetEq CompEq generate_randomness *)
-
-    Print Comp_eq.
 
     (* Definition weird_eq := fun (A : Set) (c1 c2 : Comp A) => Comp_eq c1 c2. *)
     Global Instance Proper_PosSetEq (eta : nat) :
@@ -250,20 +303,63 @@ Section Language.
       cbv [indist universal_security_game]; intros.
       apply eq_impl_negligible; cbv [pointwise_relation]; intros eta.
       specialize (comp_spec_otp_l eta (x eta)).
-      assert (forall y, evalDist (RndT' eta) y == evalDist (r <-$ RndT' eta; ret T_op' eta (x eta) r) y).
-      eapply comp_spec_eq_impl_eq.
-      assumption.
       apply Comp_eq_evalDist.
-      { admit. }
-      { admit. }
+      intros.
+      fcf_skip.
+      cbv [RndT'] in H.
+      cbv [interp_term interp_term_fixed randomness_indices].
+      assert (evalDist
+                (out <-$
+                     (rands <-$
+                            generate_randomness eta (PositiveSet.singleton n);
+                      ret RndT'_symbolic eta
+                          match PositiveMap.find n rands with
+                          | Some r => r
+                          | None => cast_rand eta (unreachable eta)
+                          end); ret dst message eta x0 out) c ==
+              evalDist
+                (out <-$
+                     (rands <-$
+                            generate_randomness eta (PositiveSet.singleton n);
+                      ret T_op' eta (x eta)
+                          (RndT'_symbolic eta
+                                          match PositiveMap.find n rands with
+                                          | Some r => r
+                                          | None => cast_rand eta (unreachable eta)
+                                          end)); ret dst message eta x0 out) c).
       {
+        fcf_inline_first.
+        apply Comp_eq_evalDist.
+        setoid_rewrite singleton_randomness.
+        setoid_rewrite <-Comp_eq_associativity.
+        apply Comp_eq_evalDist.
         intros.
-        fcf_skip.
-        cbv [RndT'] in H.
-        cbv [interp_term interp_term_fixed randomness_indices].
+        fcf_at fcf_ret fcf_left 1%nat.
+        fcf_at fcf_ret fcf_right 1%nat.
+        SearchAbout PositiveMap.find.
+        apply Comp_eq_evalDist.
+        (* rewrite PositiveMapProperties.F.add_eq_o. *)
 
-        (* pull out randomness and then casting and then symbolicizing it is the same as *)
-        (* pull out randomnes, cast, symbolicize, call top on it and x *)
+      (* If the first part of the bind is Comp_eq and the second part is the same, the whole thing is Comp_eq. *)
+      (* assert (Comp_eq *)
+      (*           (ret dst message eta x0 *)
+      (*                (RndT'_symbolic eta *)
+      (*                                match PositiveMap.find n x1 with *)
+      (*                                | Some r => r *)
+      (*                                | None => cast_rand eta (unreachable eta) *)
+      (*                                end)) *)
+      (*           (out <-$ *)
+      (*                ret T_op' eta (x eta) *)
+      (*                (RndT'_symbolic eta *)
+      (*                                match PositiveMap.find n x1 with *)
+      (*                                | Some r => r *)
+      (*                                | None => cast_rand eta (unreachable eta) *)
+      (*                                end); ret dst message eta x0 out) *)
+
+
+
+      (* pull out randomness and then casting and then symbolicizing it is the same as *)
+      (* pull out randomnes, cast, symbolicize, call top on it and x *)
     Admitted.
 
   End OTP.
