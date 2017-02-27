@@ -339,23 +339,90 @@ Section Language.
         apply Comp_eq_evalDist.
 
         (* WHY does setoid_rewrite not work here? For now, inline the rewriting... *)
-        etransitivity.
-        eapply Proper_Bind. reflexivity. cbv [respectful]. intros. subst.
-        setoid_rewrite PositiveMapProperties.F.add_eq_o; [|reflexivity].
-        match goal with |- ?R ?LHS ?RHS =>
-                        match (eval pattern y in LHS) with
-                          ?LHS' _ => eapply (reflexivity (LHS' y))
-                        end
-        end.
+        (* etransitivity. *)
+        (* eapply Proper_Bind. reflexivity. cbv [respectful]. intros. subst. *)
+        (* setoid_rewrite PositiveMapProperties.F.add_eq_o; [|reflexivity]. *)
+        (* match goal with |- ?R ?LHS ?RHS => *)
+        (*                 match (eval pattern y in LHS) with *)
+        (*                   ?LHS' _ => eapply (reflexivity (LHS' y)) *)
+        (*                 end *)
+        (* end. *)
 
-        etransitivity. Focus 2. {
-        eapply Proper_Bind. reflexivity. cbv [respectful]. intros. subst. symmetry.
-        setoid_rewrite PositiveMapProperties.F.add_eq_o; [|reflexivity].
-        match goal with |- ?R ?LHS ?RHS =>
-                        match (eval pattern y in LHS) with
-                          ?LHS' _ => eapply (reflexivity (LHS' y))
-                        end
-        end. } Unfocus.
+        (* etransitivity. Focus 2. { *)
+        (* eapply Proper_Bind. reflexivity. cbv [respectful]. intros. subst. symmetry. *)
+        (* setoid_rewrite PositiveMapProperties.F.add_eq_o; [|reflexivity]. *)
+        (* match goal with |- ?R ?LHS ?RHS => *)
+        (*                 match (eval pattern y in LHS) with *)
+        (*                   ?LHS' _ => eapply (reflexivity (LHS' y)) *)
+        (*                 end *)
+        (* end. } Unfocus. *)
+        assert(Comp_eq
+              (a <-$ { 0 , 1 }^ len_rand eta;
+               ret dst message eta x0
+                   (RndT'_symbolic eta
+                                   match Some (cast_rand eta a)
+                                   with
+                                   | Some r => r
+                                   | None => cast_rand eta (unreachable eta)
+                                   end))
+              (a <-$ { 0 , 1 }^ len_rand eta;
+               ret dst message eta x0
+                   (T_op' eta (x eta)
+                          (RndT'_symbolic eta
+                                          match Some (cast_rand eta a)
+                                          with
+                                          | Some r => r
+                                          | None => cast_rand eta (unreachable eta)
+                                          end)))).
+        cbv [RndT'] in comp_spec_otp_l.
+        etransitivity.
+        {
+          etransitivity.
+          {
+            instantiate (1:= a <-$ { 0 , 1 }^ len_rand eta;
+                             b <-$ ret RndT'_symbolic eta (cast_rand eta a);
+                             ret dst message eta x0 b).
+            apply Comp_eq_evalDist.
+            intros.
+            fcf_at fcf_ret fcf_right 1%nat.
+            reflexivity.
+          }
+          {
+            instantiate (1:= r <-$ (x <-$ { 0 , 1 }^ len_rand eta; ret RndT'_symbolic eta (cast_rand eta x));
+                             b <-$ ret T_op' eta (x eta) r;
+                             ret dst message eta x0 b).
+            assert (Comp_eq (a <-$ { 0 , 1 }^ len_rand eta;
+                             ret RndT'_symbolic eta (cast_rand eta a))
+                            (r <-$ (x1 <-$ { 0 , 1 }^ len_rand eta; ret RndT'_symbolic eta (cast_rand eta x1));
+                             ret T_op' eta (x eta) r)).
+            { apply comp_spec_impl_Comp_eq in comp_spec_otp_l; assumption. }
+            {
+              rewrite Comp_eq_associativity.
+              {
+                rewrite Comp_eq_associativity.
+                {
+                  eapply Proper_Bind.
+                  { assumption. }
+                  { cbv [respectful]; intros; rewrite H1; reflexivity. }
+                }
+                { admit. }
+              }
+              { admit. }
+            }
+          }
+        }
+        {
+          rewrite <-Comp_eq_associativity.
+          apply Comp_eq_evalDist.
+
+
+
+
+
+
+
+
+
 
       (* If the first part of the bind is Comp_eq and the second part is the same, the whole thing is Comp_eq. *)
       (* assert (Comp_eq *)

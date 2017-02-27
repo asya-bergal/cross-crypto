@@ -100,10 +100,33 @@ Qed.
 Lemma Comp_eq_evalDist A (x y:Comp A) :
   (forall c, evalDist x c == evalDist y c)
   <-> Comp_eq x y.
+Proof.
   split; intro.
   { cbv [Comp_eq Distribution_eq pointwise_relation image_relation]; assumption. }
   { cbv [Comp_eq Distribution_eq pointwise_relation image_relation] in H; assumption. }
 Qed.
+
+(* TODO: This should be a two-way lemma *)
+Lemma comp_spec_impl_Comp_eq A (H: EqDec A) (x y: Comp A) :
+  comp_spec eq x y
+  -> Comp_eq x y.
+Proof.
+  intro.
+  apply Comp_eq_evalDist.
+  intro.
+  fcf_to_prhl.
+  cbv [comp_spec] in *.
+  destruct H0.
+  exists x0.
+  destruct H0.
+  destruct H1.
+  split; try split; try assumption.
+  intros.
+  specialize (H2 p H3).
+  rewrite H2.
+  reflexivity.
+Qed.
+
 
 Lemma Bind_unused A B (a:Comp A) (b:Comp B) :
   Comp_eq (_ <-$ a; b) b.
@@ -144,3 +167,9 @@ Proof.
   intros.
   apply evalDist_commute_eq.
 Qed.
+
+Lemma Comp_eq_symmetry : forall (A : Set) (c1 c2: Comp A), Comp_eq c1 c2 <-> Comp_eq c2 c1.
+  Proof.
+    intros; split; intro; apply Comp_eq_evalDist; rewrite <- Comp_eq_evalDist in H; intros; apply eqRat_symm; auto.
+  Qed.
+
