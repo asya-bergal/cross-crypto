@@ -69,7 +69,15 @@ Section Language.
     | Term_app f x => PositiveSet.union (randomness_indices f) (randomness_indices x)
     | _ => PositiveSet.empty
     end.
-  Global Instance randomness_map_eq_dec {eta} : EqDec (PositiveMap.t (interp_type rand eta)). Admitted.
+  Scheme Equality for PositiveMap.tree.
+  Global Instance randomness_map_eq_dec {eta} : EqDec (PositiveMap.t (interp_type rand eta)).
+  Proof.
+    Print EqDec.
+    eapply Build_EqDec.
+    constructor.
+
+
+  Admitted.
   Context (len_rand : forall eta:nat, nat)
           (cast_rand : forall eta, Bvector (len_rand eta) -> interp_type rand eta).
   Definition generate_randomness (eta:nat) idxs
@@ -82,10 +90,21 @@ Section Language.
                         idxs
                         (ret (PositiveMap.empty _)).
 
+  Lemma empty_randomness : forall (eta : nat),
+      Comp_eq (generate_randomness eta PositiveSet.empty)
+      (ret (PositiveMap.empty _)).
+  Proof.
+    intros.
+    cbv [generate_randomness].
+    rewrite PositiveSetProperties.fold_empty.
+    reflexivity.
+  Qed.
+
   Lemma singleton_randomness : forall (eta : nat) (n : positive),
       Comp_eq (generate_randomness eta (PositiveSet.singleton n))
               (ri <-$ {0,1}^(len_rand eta);
                  ret (PositiveMap.add n (cast_rand eta ri) (PositiveMap.empty _))).
+  Proof.
     intros.
     cbv [generate_randomness PositiveSet.singleton].
     rewrite PositiveSetProperties.fold_add.
@@ -103,15 +122,15 @@ Section Language.
       assert (Comp_eq x0 y0).
       apply Comp_eq_evalDist.
       assumption.
-      generalize a.
-      apply Comp_eq_evalDist.
-      setoid_rewrite H1.
+      setoid_rewrite H0.
       reflexivity.
     }
     {
       cbv [transpose Distribution_eq pointwise_relation RelCompFun].
       intros.
       (* TODO: Make these all tactics you can perform on Comp_eqs + ask andres about this *)
+      apply Comp_eq_evalDist.
+      intros.
       fcf_inline_first.
       fcf_skip.
       fcf_inline_first.
@@ -122,24 +141,24 @@ Section Language.
       apply Comp_eq_evalDist.
       destruct (Pos.eq_dec x y).
       { rewrite e; reflexivity. }
-      {
-        remember (PosMap_add_commutes x y n0 (interp_type rand eta) x0) as comm.
-        assert (evalDist
-          (a0 <-$ { 0 , 1 }^ len_rand eta;
-             a1 <-$ { 0 , 1 }^ len_rand eta;
-             ret PositiveMap.add y (cast_rand eta a0) (PositiveMap.add x (cast_rand eta a1) x0)) a ==
-                evalDist
-          (a0 <-$ { 0 , 1 }^ len_rand eta;
-             a1 <-$ { 0 , 1 }^ len_rand eta;
-             ret PositiveMap.add y (cast_rand eta a1) (PositiveMap.add x (cast_rand eta a0) x0)) a).
-        {
-          fcf_at fcf_swap fcf_right 0%nat.
-          reflexivity.
-        }
+      { admit. }
+
+      (* { *)
+      (*   remember (PosMap_add_commutes x y n0 (interp_type rand eta) x0) as comm. *)
+      (*   assert (evalDist *)
+      (*     (a0 <-$ { 0 , 1 }^ len_rand eta; *)
+      (*        a1 <-$ { 0 , 1 }^ len_rand eta; *)
+      (*        ret PositiveMap.add y (cast_rand eta a0) (PositiveMap.add x (cast_rand eta a1) x0)) a == *)
+      (*           evalDist *)
+      (*     (a0 <-$ { 0 , 1 }^ len_rand eta; *)
+      (*        a1 <-$ { 0 , 1 }^ len_rand eta; *)
+      (*        ret PositiveMap.add y (cast_rand eta a1) (PositiveMap.add x (cast_rand eta a0) x0)) a). *)
+      (*   { *)
+      (*     fcf_at fcf_swap fcf_right 0%nat. *)
+      (*     reflexivity. *)
+      (*   } *)
         (* TODO: Do this rewrite under a bind. *)
-        { admit. }
       }
-    }
     { cbv [not]; apply (PositiveSetProperties.Dec.F.empty_iff n). }
   Admitted.
 
@@ -214,7 +233,11 @@ Section Language.
     Qed.
   End Equality.
 
-  Section LateInterp.
+  (* Forall message, Generate key. *)
+  (* Encrypt message under key *)
+  (* Generate 2nd key, encrypt 1st key under 2nd key *)
+  (* Reveal both ciphertexts to adversary *)
+Section LateInterp.
     Fixpoint interp_term_late
              {t} (e:term t) (eta : nat)
              (adv: interp_type list_message eta -> interp_type message eta)
@@ -262,13 +285,18 @@ Section Language.
     Admitted.
   End LateInterp.
 
-  Fixpoint fresh r {t} (e: term t) : Prop :=
-    match e with
-    | Term_random idx => idx = r
-    | Term_app func arg => fresh r func /\ fresh r arg
-    | _ => True
-    end.
-  (* interp term of (rand to T) of term rand *)
+  (* One term is fresh in another if they don't share randomness. *)
+  Definition fresh {T} {U} (x : term T) (y : term U) :=
+    PositiveSet.eq (PositiveSet.inter (randomness_indices x) (randomness_indices y))
+                  PositiveSet.empty.
+
+  Lemma empty_inter: forall s : PositiveSet.t, PositiveSet.eq (PositiveSet.inter s PositiveSet.empty) PositiveSet.empty.
+    intros.
+    apply PositiveSetProperties.empty_is_empty_1.
+    apply PositiveSetProperties.empty_inter_2.
+    apply PositiveSet.empty_spec.
+  Qed.
+
 
   Section OTP.
     Definition T' := interp_type message.
@@ -298,152 +326,144 @@ Section Language.
       Proper (PositiveSet.Equal ==> Comp_eq) (generate_randomness eta).
     Admitted.
 
-    Theorem symbolic_OTP : forall (n : positive) (x : forall (eta : nat), T' eta), indist (const RndT'_symbolic @ (rnd n)) (const T_op' @ const x @ (const RndT'_symbolic @ (rnd n)))%term.
+    About Proper_Bind.
+    Lemma empty_update_1 : forall (elt : Type) (m : PositiveMap.t elt),
+        PositiveMap.Equal (PositiveMapProperties.update m (PositiveMap.empty elt)) m.
     Proof.
+      intros.
+      cbv [PositiveMapProperties.update].
+      apply PositiveMapProperties.fold_Empty.
+      { apply PositiveMapProperties.F.Equal_ST. }
+      { apply PositiveMap.empty_1. }
+    Qed.
+
+    Lemma empty_update_2 : forall (elt : Type) (m : PositiveMap.t elt),
+      PositiveMap.Equal (PositiveMapProperties.update (PositiveMap.empty elt) m) m.
+    Proof.
+      intros.
+      cbv [PositiveMapProperties.update].
+      cbv [PositiveMap.fold PositiveMap.xfoldi].
+    Admitted.
+    (*   apply PositiveMapProperties.fold_Empty. *)
+    (*   { apply PositiveMapProperties.F.Equal_ST. } *)
+    (*   { apply PositiveMap.empty_1. } *)
+    (* Qed. *)
+
+    (* Theorem symbolic_OTP : forall (n : positive) (x : forall (eta : nat), T' eta), indist (const RndT'_symbolic @ (rnd n)) (const T_op' @ const x @ (const RndT'_symbolic @ (rnd n)))%term. *)
+
+    Theorem symbolic_OTP : forall (n : positive) (x: term message),
+        fresh (rnd n) x ->
+        indist (const RndT'_symbolic @ (rnd n)) (const T_op' @ x @ (const RndT'_symbolic @ (rnd n)))%term.
       cbv [indist universal_security_game]; intros.
       apply eq_impl_negligible; cbv [pointwise_relation]; intros eta.
-      specialize (comp_spec_otp_l eta (x eta)).
-      apply Comp_eq_evalDist.
-      intros.
-      fcf_skip.
-      cbv [RndT'] in H.
-      cbv [interp_term interp_term_fixed randomness_indices].
-      assert (evalDist
-                (out <-$
-                     (rands <-$
-                            generate_randomness eta (PositiveSet.singleton n);
-                      ret RndT'_symbolic eta
-                          match PositiveMap.find n rands with
-                          | Some r => r
-                          | None => cast_rand eta (unreachable eta)
-                          end); ret dst message eta x0 out) c ==
-              evalDist
-                (out <-$
-                     (rands <-$
-                            generate_randomness eta (PositiveSet.singleton n);
-                      ret T_op' eta (x eta)
-                          (RndT'_symbolic eta
-                                          match PositiveMap.find n rands with
-                                          | Some r => r
-                                          | None => cast_rand eta (unreachable eta)
-                                          end)); ret dst message eta x0 out) c).
+      eapply Proper_Bind.
+      reflexivity.
+      cbv [respectful]; intros.
+      subst.
+      setoid_rewrite <-interp_term_late_correct.
+      simpl interp_term_late.
+      cbv [fresh] in H.
+      simpl in H.
+      rewrite H.
+
+      rewrite empty_inter.
+      (* Should be able to do: *)
+      (* setoid_rewrite empty_inter. on the rest of them*)
+      rewrite empty_randomness.
+      setoid_rewrite Comp_eq_left_ident.
+      Focus 2. apply eqdec_base_type.
+      Focus 2. apply eqdec_base_type.
+
+      rewrite empty_update_1.
+      rewrite PositiveMapProperties.F.empty_o.
+
+      rewrite empty_inter.
+      rewrite empty_randomness.
+      setoid_rewrite Comp_eq_left_ident. Focus 2. apply eqdec_base_type.
+
+      (* This hides a lot of setoid_rewrites that should work: *)
+      assert (Comp_eq
+        (out <-$
+        (x0 <-$ (r <-$ { 0 , 1 }^ len_rand eta; ret cast_rand eta r);
+          f <-$ ret RndT'_symbolic eta; ret f x0); ret dst message eta y out)
+        (out <-$
+          (x0 <-$
+              (x0 <-$
+                  (r <-$ { 0 , 1 }^ len_rand eta; ret cast_rand eta r);
+              f <-$ ret RndT'_symbolic eta; ret f x0);
+            x1 <-$ interp_term_late x eta (adv eta y) (PositiveMap.empty (interp_type rand eta));
+            ret (T_op' eta) x1 x0); ret dst message eta y out)).
       {
-        fcf_inline_first.
-        apply Comp_eq_evalDist.
-        setoid_rewrite singleton_randomness.
-        setoid_rewrite <-Comp_eq_associativity.
         apply Comp_eq_evalDist.
         intros.
+        fcf_inline_first.
         fcf_at fcf_ret fcf_left 1%nat.
         fcf_at fcf_ret fcf_right 1%nat.
-        apply Comp_eq_evalDist.
+        fcf_at fcf_inline fcf_left 1%nat.
 
-        (* WHY does setoid_rewrite not work here? For now, inline the rewriting... *)
-        (* etransitivity. *)
-        (* eapply Proper_Bind. reflexivity. cbv [respectful]. intros. subst. *)
-        (* setoid_rewrite PositiveMapProperties.F.add_eq_o; [|reflexivity]. *)
-        (* match goal with |- ?R ?LHS ?RHS => *)
-        (*                 match (eval pattern y in LHS) with *)
-        (*                   ?LHS' _ => eapply (reflexivity (LHS' y)) *)
-        (*                 end *)
-        (* end. *)
-
-        (* etransitivity. Focus 2. { *)
-        (* eapply Proper_Bind. reflexivity. cbv [respectful]. intros. subst. symmetry. *)
-        (* setoid_rewrite PositiveMapProperties.F.add_eq_o; [|reflexivity]. *)
-        (* match goal with |- ?R ?LHS ?RHS => *)
-        (*                 match (eval pattern y in LHS) with *)
-        (*                   ?LHS' _ => eapply (reflexivity (LHS' y)) *)
-        (*                 end *)
-        (* end. } Unfocus. *)
-        assert(Comp_eq
-              (a <-$ { 0 , 1 }^ len_rand eta;
-               ret dst message eta x0
-                   (RndT'_symbolic eta
-                                   match Some (cast_rand eta a)
-                                   with
-                                   | Some r => r
-                                   | None => cast_rand eta (unreachable eta)
-                                   end))
-              (a <-$ { 0 , 1 }^ len_rand eta;
-               ret dst message eta x0
-                   (T_op' eta (x eta)
-                          (RndT'_symbolic eta
-                                          match Some (cast_rand eta a)
-                                          with
-                                          | Some r => r
-                                          | None => cast_rand eta (unreachable eta)
-                                          end)))).
-        cbv [RndT'] in comp_spec_otp_l.
-        etransitivity.
+        fcf_at fcf_inline fcf_right 2%nat.
+        fcf_at fcf_inline fcf_right 1%nat.
+        fcf_at fcf_swap fcf_right 0%nat.
+        fcf_irr_r.
+        { admit. (* TODO: Ask someone about this.  *)}
         {
-          etransitivity.
+          cbv [RndT'] in comp_spec_otp_l.
+          specialize (comp_spec_otp_l eta x0).
+          assert (Comp_eq
+                    (x <-$ { 0 , 1 }^ len_rand eta; ret RndT'_symbolic eta (cast_rand eta x))
+                    (r <-$ (x <-$ { 0 , 1 }^ len_rand eta; ret RndT'_symbolic eta (cast_rand eta x));
+                     ret T_op' eta x0 r)).
+        (* apply Comp_eq_evalDist. *)
+        (* intros. *)
+          { apply comp_spec_impl_Comp_eq in comp_spec_otp_l; assumption. }
           {
-            instantiate (1:= a <-$ { 0 , 1 }^ len_rand eta;
-                             b <-$ ret RndT'_symbolic eta (cast_rand eta a);
-                             ret dst message eta x0 b).
-            apply Comp_eq_evalDist.
-            intros.
-            fcf_at fcf_ret fcf_right 1%nat.
-            reflexivity.
-          }
-          {
-            instantiate (1:= r <-$ (x <-$ { 0 , 1 }^ len_rand eta; ret RndT'_symbolic eta (cast_rand eta x));
-                             b <-$ ret T_op' eta (x eta) r;
-                             ret dst message eta x0 b).
-            assert (Comp_eq (a <-$ { 0 , 1 }^ len_rand eta;
-                             ret RndT'_symbolic eta (cast_rand eta a))
-                            (r <-$ (x1 <-$ { 0 , 1 }^ len_rand eta; ret RndT'_symbolic eta (cast_rand eta x1));
-                             ret T_op' eta (x eta) r)).
-            { apply comp_spec_impl_Comp_eq in comp_spec_otp_l; assumption. }
+            rewrite <- Comp_eq_associativity in H1.
+            Focus 2. apply Bvector_EqDec.
+            assert (
+                evalDist
+                  (x <-$ (
+                       a <-$ { 0 , 1 }^ len_rand eta;
+                       ret RndT'_symbolic eta (cast_rand eta a));
+                   ret dst message eta y x) c ==
+                evalDist
+                  (x <-$ (
+                       a <-$ { 0 , 1 }^ len_rand eta;
+                       b <-$ ret RndT'_symbolic eta (cast_rand eta a);
+                       ret T_op' eta x0 b);
+                   ret dst message eta y x) c).
             {
-              rewrite Comp_eq_associativity.
+              apply Comp_eq_evalDist.
+              apply Proper_Bind.
+              assumption.
+              cbv [respectful]; intros; subst; reflexivity.
+            }
+            {
+              transitivity (evalDist (x <-$ (a <-$ { 0 , 1 }^ len_rand eta;
+                                      ret RndT'_symbolic eta (cast_rand eta a));
+                                      ret dst message eta y x) c).
               {
-                rewrite Comp_eq_associativity.
-                {
-                  eapply Proper_Bind.
-                  { assumption. }
-                  { cbv [respectful]; intros; rewrite H1; reflexivity. }
-                }
-                { admit. }
+                fcf_inline_first.
+                fcf_at fcf_ret fcf_right 1%nat.
+                reflexivity.
               }
-              { admit. }
+              {
+                transitivity (evalDist (x <-$ (a <-$ { 0 , 1 }^ len_rand eta;
+                                               b <-$ ret RndT'_symbolic eta (cast_rand eta a);
+                                               ret T_op' eta x0 b);
+                                        ret dst message eta y x) c).
+                { assumption. }
+                {
+                  fcf_inline_first.
+                  fcf_at fcf_inline fcf_left 1%nat.
+                  fcf_at fcf_ret fcf_right 1%nat.
+                  reflexivity.
+                }
+              }
             }
           }
         }
-        {
-          rewrite <-Comp_eq_associativity.
-          apply Comp_eq_evalDist.
-
-
-
-
-
-
-
-
-
-
-      (* If the first part of the bind is Comp_eq and the second part is the same, the whole thing is Comp_eq. *)
-      (* assert (Comp_eq *)
-      (*           (ret dst message eta x0 *)
-      (*                (RndT'_symbolic eta *)
-      (*                                match PositiveMap.find n x1 with *)
-      (*                                | Some r => r *)
-      (*                                | None => cast_rand eta (unreachable eta) *)
-      (*                                end)) *)
-      (*           (out <-$ *)
-      (*                ret T_op' eta (x eta) *)
-      (*                (RndT'_symbolic eta *)
-      (*                                match PositiveMap.find n x1 with *)
-      (*                                | Some r => r *)
-      (*                                | None => cast_rand eta (unreachable eta) *)
-      (*                                end); ret dst message eta x0 out) *)
-
-
-
-      (* pull out randomness and then casting and then symbolicizing it is the same as *)
-      (* pull out randomnes, cast, symbolicize, call top on it and x *)
+      }
+      { admit. }
     Admitted.
 
   End OTP.
