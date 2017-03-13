@@ -464,8 +464,41 @@ Section LateInterp.
         }
       }
       { admit. }
+
     Admitted.
 
+    About symbolic_OTP.
+    Print sig.
+
+    Context (pair_eta : forall (eta : nat), interp_type (message -> message -> list_message) eta).
+
+    Theorem temp_name: forall (x k k': term message) (n n' : positive),
+        fresh x k ->
+        fresh k k' ->
+        fresh x k' ->
+        indist (const pair_eta @ ((const T_op' @ x) @ k) @ ((const T_op' @ k) @ k'))
+               (const pair_eta @ (const RndT'_symbolic @ rnd n) @ (const RndT'_symbolic @ rnd n')).
+    Proof.
+      intros.
+      cbv [indist universal_security_game]; intros.
+      apply eq_impl_negligible; cbv [pointwise_relation]; intros eta.
+      eapply Proper_Bind.
+      reflexivity.
+      cbv [respectful]; intros.
+      subst.
+      setoid_rewrite <-interp_term_late_correct.
+      simpl interp_term_late.
+      cbv [fresh] in H, H0.
+   Admitted.
+
+(*       simpl in H. *)
+(*       rewrite H. *)
+
+(*       About symbolic_OTP. *)
+
+
+
+(* encryption of x under k, encryption of k under k' ~~ randomness, randomness *)
   End OTP.
 
   Lemma indist_rand (x y:positive) : indist (rnd x) (rnd y).
