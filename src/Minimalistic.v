@@ -357,10 +357,9 @@ Section LateInterp.
     Global Instance Proper_interp_term_late {t} (x : term t) eta : (Proper (eq ==> PositiveMap.Equal ==> Comp_eq) (interp_term_late x eta)).
     Admitted.
 
-    Set Printing Implicit.
-    Check fun eta => Proper (pointwise_relation (PositiveMap.t (interp_base_type rand eta)) (comp_spec eq) ==> Comp_eq) (Bind (ret PositiveMap.empty (interp_type rand eta))).
     Global Instance Proper_map eta: Proper (pointwise_relation (PositiveMap.t (interp_base_type rand eta)) (comp_spec (@eq (T' eta))) ==> Comp_eq) (Bind (ret PositiveMap.empty (interp_type rand eta))).
 
+    Global Instance Proper_map' eta: Proper (PositiveMap.Equal ==> Comp_eq) (Ret (EqDec_dec (@randomness_map_eq_dec eta))).
     (* Admitted. *)
     Theorem symbolic_OTP : forall (n : positive) (x: term message),
         fresh (rnd n) x ->
