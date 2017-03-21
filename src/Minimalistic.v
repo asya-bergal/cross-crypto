@@ -358,8 +358,10 @@ Section LateInterp.
     Admitted.
 
     Global Instance Proper_map eta: Proper (pointwise_relation (PositiveMap.t (interp_base_type rand eta)) (comp_spec (@eq (T' eta))) ==> Comp_eq) (Bind (ret PositiveMap.empty (interp_type rand eta))).
+    Admitted.
 
     Global Instance Proper_map' eta: Proper (PositiveMap.Equal ==> Comp_eq) (Ret (EqDec_dec (@randomness_map_eq_dec eta))).
+    Admitted.
     (* Admitted. *)
     Theorem symbolic_OTP : forall (n : positive) (x: term message),
         fresh (rnd n) x ->
@@ -378,9 +380,10 @@ Section LateInterp.
 
       setoid_rewrite empty_inter.
       setoid_rewrite empty_randomness.
-      Set Typeclasses Debug.
-      try timeout 2 setoid_rewrite empty_update_1.
+      About empty_update_1.
       Opaque PositiveMap.empty.
+      setoid_rewrite empty_update_1.
+
 
 
       (* Running coqc will print out debug log after set typeclasses debug *)
