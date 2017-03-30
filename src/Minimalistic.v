@@ -195,6 +195,12 @@ Section Language.
         let game eta e := universal_security_game adl adv dst eta e in
         negligible (fun eta => | Pr[game eta a] -  Pr[game eta b] | ).
 
+    Global Instance Equivalence_indist {t} : Equivalence (@indist t) := _.
+    Admitted.
+
+    Global Instance Transitive_indist {t} : Transitive (@indist t).
+    Admitted.
+
     Global Instance Reflexive_indist {t} : Reflexive (@indist t).
     Proof.
       cbv [Reflexive indist]; setoid_rewrite ratDistance_same; eauto using negligible_0.
@@ -297,6 +303,90 @@ Section LateInterp.
     apply PositiveSet.empty_spec.
   Qed.
 
+  Ltac indistify := 
+    intros;
+    cbv [indist universal_security_game]; intros;
+    apply eq_impl_negligible; cbv [pointwise_relation]; intros eta;
+    eapply Proper_Bind;
+    try reflexivity;
+    cbv [respectful]; intros;
+    subst.
+
+
+  Context (pair_eta : forall (eta : nat), interp_type (message -> message -> list_message) eta).
+
+  Fixpoint replace_individual_randomness {t} (x: term t) (idx p : positive) : term t :=
+    match x with
+    | Term_const c => Term_const c
+    | Term_random n => if PositiveSet.E.eqb idx n then Term_random p else Term_random n
+    | Term_adversarial l => Term_adversarial l
+    | Term_app f x => Term_app (replace_individual_randomness f idx p)
+                              (replace_individual_randomness x idx p)
+    end.
+
+  Fixpoint replace_randomness {t} (x: term t) (from : list positive) (to : list positive) : term t :=
+    match from with
+    | nil => x
+    | hd :: tl => match to with
+                 | nil => x 
+                 | hd' :: tl' => replace_randomness
+                                  (replace_individual_randomness x hd hd') tl tl'
+                 end
+    end.
+
+  Definition randomness_independent {t u} (x: term t) (ctx : term (Type_arrow t u)) : Prop :=
+    forall new_idxs: list positive,
+      indist (ctx @ (replace_randomness x
+                                      (PositiveSet.elements (randomness_indices x))
+                                      new_idxs))
+             (ctx @ x).
+
+  (* Inductive term : type -> Type := *)
+  (* | Term_const {t} (_:forall eta, interp_type t eta) : term t *)
+  (* | Term_random (idx:positive) : term rand *)
+  (* | Term_adversarial (_:term list_message) : term message *)
+  (* | Term_app {dom cod} (_:term (Type_arrow dom cod)) (_:term dom) : term cod. *)
+
+  (* Why can't we write this in the general case? *)
+  (* x and y are indistinguishable to any polytime function, and we know ctx is a polytime function. *)
+  (* BUT what if ctx has a closure over x or y? Then can it distinguish between x or y? *)
+  (*     That is undecideable.  *)
+  (*             f x ~ f y *)
+  (*               if f is closed over x (f x x ~ f x y) *)
+  (*                    f contains a closure over x, so can branch after seeing x. if f is OTP, we know it's fine because we've proven OTP is semantically secure. but if f is RSA, it's not proven that it's semantically secure, so it's undecideable. *)
+  (*                                                                                                          Pair is special and cool, because it's a constant-- doesn't close over anything at the beginning. *)
+  (*                                                                                                          Pair can fuck over OTP if it knows k. But it doesn't know k after the first term, because semantic security. And so the second term is okay. *)
+  (* Really what's acceptable and what's not depends on the thing being evaluated *)
+
+  (*     Who knows?  *)
+  
+  (* ctx could contain a closure that contains x, or y, or some function of x or y. Then the problem becomes: *)
+  (*                                                                                                                 Can ctx distinguish between receiving x or y? Which is just solving distinguishability, which is insane. *)
+  Lemma indist_proper: forall {t u} (x: term t) (y : term t) (z : term u) (ctx: term (Type_arrow t u))
+                         (H: indist (ctx @ x) z),
+      indist x y ->
+      randomness_independent x ctx ->
+      randomness_independent y ctx ->
+      indist (ctx @ y) z.
+    intros.
+    setoid_rewrite <- H0.
+
+    cbv [indist universal_security_game]; intros.
+    cbv [indist universal_security_game] in H0.
+    specialize (H0 adl adv dst).
+    SearchAbout negligible.
+
+    Print negligible.
+    (* You need something about f being poly time here, for reals. *)
+    Lemma
+      negligible (fun eta : nat => f x)
+      -> negligible (fun eta : nat => f y).
+    Print iff.
+
+    apply eq_impl_negligible in H3.
+
+    apply Proper_Bind.
+    cbv [interp_term].
 
   Section OTP.
     Definition T' := interp_type message.
@@ -366,11 +456,7 @@ Section LateInterp.
     Theorem symbolic_OTP : forall (n : positive) (x: term message),
         fresh (rnd n) x ->
         indist (const RndT'_symbolic @ (rnd n)) (const T_op' @ x @ (const RndT'_symbolic @ (rnd n)))%term.
-      cbv [indist universal_security_game]; intros.
-      apply eq_impl_negligible; cbv [pointwise_relation]; intros eta.
-      eapply Proper_Bind.
-      reflexivity.
-      cbv [respectful]; intros.
+      indistify.
       subst.
       setoid_rewrite <-interp_term_late_correct.
       simpl interp_term_late.
@@ -491,28 +577,6 @@ Section LateInterp.
     (* { admit. } *)
 
     (* Admitted. *)
-
-    Context (pair_eta : forall (eta : nat), interp_type (message -> message -> list_message) eta).
-
-    Fixpoint replace_randomness {t} (x: term t) (idx p : positive) : term t :=
-      match x with
-      | Term_const c => Term_const c
-      | Term_random n => if PositiveSet.E.eqb idx n then Term_random p else Term_random n
-      | Term_adversarial l => Term_adversarial l
-      | Term_app f x => Term_app (replace_randomness f idx p) (replace_randomness x idx p)
-      end.
-
-    Definition randomness_independent {t u} (x: term t) (z : term u) (ctx : term t -> term u)
-               (H: indist (ctx x) z) : Prop :=
-      forall idx: positive,
-        PositiveSet.In idx (randomness_indices x) ->
-        forall p, indist (ctx (replace_randomness x idx p)) z.
-
-    Lemma indist_proper: forall {t u} (x: term t) (y : term t) (z : term u) (ctx: term t -> term u)
-                           (H: indist (ctx x) z),
-        randomness_independent x z ctx H ->
-        fresh y z ->
-        indist (ctx y) z.
 
       (* When is it okay to rewrite ctx, Ek'x ~ ctx, rnd? *)
       (* Answer: Two conditions if you're rewriting x to y in indist expression z. *)
