@@ -334,7 +334,7 @@ Section LateInterp.
                  end
     end.
 
-  Definition randomness_independent {t u} (x: term t) (ctx : term (Type_arrow t u)) : Prop :=
+  Definition no_randomness_leaked {t u} (x: term t) (ctx : term (Type_arrow t u)) : Prop :=
     forall new_idxs: list positive,
       indist (ctx @ (replace_randomness x
                                       (PositiveSet.elements (randomness_indices x))
@@ -365,8 +365,8 @@ Section LateInterp.
   Lemma indist_proper: forall {t u} (x: term t) (y : term t) (z : term u) (ctx: term (Type_arrow t u))
                          (H: indist (ctx @ x) z),
       indist x y ->
-      randomness_independent x ctx ->
-      randomness_independent y ctx ->
+      no_randomness_leaked x ctx ->
+      no_randomness_leaked y ctx ->
       indist (ctx @ y) z.
     intros.
     setoid_rewrite <- H0.
