@@ -58,10 +58,35 @@ Section Language.
   | Term_random (idx:positive) : term rand
   | Term_adversarial (_:term list_message) : term message
   | Term_app {dom cod} (_:term (Type_arrow dom cod)) (_:term dom) : term cod.
+
+  (* Term with one or more holes in it *)
+  Inductive term_wh (holetype : type) : type -> Type :=
+  | Term_wh_const {t} (_:forall eta, interp_type t eta) : term_wh holetype t
+  | Term_wh_random (idx:positive) : term_wh holetype rand
+  | Term_wh_adversarial (_:term_wh holetype list_message) : term_wh holetype message
+  | Term_wh_app {dom cod} (_:term_wh holetype (Type_arrow dom cod)) (_:term_wh holetype dom) :
+      term_wh holetype cod
+  | Term_wh_hole : term_wh holetype holetype.
+
   Bind Scope term_scope with term.
   Notation "A @ B" := (Term_app A B) (at level 99) : term_scope.
   Notation "'rnd' n" := (Term_random n) (at level 35) : term_scope.
   Notation "'const' c" := (Term_const c) (at level 35) : term_scope.
+
+  Notation "A h@ B" := (Term_wh_app A B) (at level 99) : term_scope.
+  Notation "'hrnd' n" := (Term_wh_random n) (at level 35) : term_scope.
+  Notation "'hconst' c" := (Term_wh_const c) (at level 35) : term_scope.
+  Notation "'hole'" := (Term_wh_hole) (at level 35) : term_scope.
+
+
+  Fixpoint fill {holetype t} (twh : term_wh holetype t) (filler : term holetype) : term t :=
+    match twh with
+    | Term_wh_const _ c => Term_const c
+    | Term_wh_random _ r => Term_random r
+    | Term_wh_adversarial _ ctx => Term_adversarial (fill ctx filler)
+    | Term_wh_app _ f x => Term_app (fill f filler) (fill x filler)
+    | Term_wh_hole _ => filler
+    end.
 
   Fixpoint randomness_indices {t:type} (e:term t) : PositiveSet.t :=
     match e with
@@ -75,9 +100,8 @@ Section Language.
     Print EqDec.
     eapply Build_EqDec.
     constructor.
-
-
   Admitted.
+
   Context (len_rand : forall eta:nat, nat)
           (cast_rand : forall eta, Bvector (len_rand eta) -> interp_type rand eta).
   Definition generate_randomness (eta:nat) idxs
@@ -334,34 +358,51 @@ Section LateInterp.
                  end
     end.
 
+  (* TODO: Provetp for syntactic randomness *)
+
+  (* TODO: Make this a bijective map. *)
+  (* 2016 paper encryption formalization *)
+  (* look into substitution into ctx inside the encryption lemma *)
+  (* E_k{x} ~ r *)
   Definition no_randomness_leaked {t u} (x: term t) (ctx : term (Type_arrow t u)) : Prop :=
     forall new_idxs: list positive,
       indist (ctx @ (replace_randomness x
                                       (PositiveSet.elements (randomness_indices x))
                                       new_idxs))
              (ctx @ x).
+  (* ctx (xor x y) *)
+  (* x := xor x y *)
+  (* xor z z *)
 
-  (* Inductive term : type -> Type := *)
-  (* | Term_const {t} (_:forall eta, interp_type t eta) : term t *)
-  (* | Term_random (idx:positive) : term rand *)
-  (* | Term_adversarial (_:term list_message) : term message *)
-  (* | Term_app {dom cod} (_:term (Type_arrow dom cod)) (_:term dom) : term cod. *)
+  About universal_security_game.
+  (* Definition no_shared_randomness {t u} (x : term t) (ctx: term_wh t u) : Prop. *)
+  (* dst' eta rand v = dst eta rand (interp evil_rand_tape (subst ctx v)) *)
+  About interp_term.
+  Print universal_security_game.
 
-  (* Why can't we write this in the general case? *)
-  (* x and y are indistinguishable to any polytime function, and we know ctx is a polytime function. *)
-  (* BUT what if ctx has a closure over x or y? Then can it distinguish between x or y? *)
-  (*     That is undecideable.  *)
-  (*             f x ~ f y *)
-  (*               if f is closed over x (f x x ~ f x y) *)
-  (*                    f contains a closure over x, so can branch after seeing x. if f is OTP, we know it's fine because we've proven OTP is semantically secure. but if f is RSA, it's not proven that it's semantically secure, so it's undecideable. *)
-  (*                                                                                                          Pair is special and cool, because it's a constant-- doesn't close over anything at the beginning. *)
-  (*                                                                                                          Pair can fuck over OTP if it knows k. But it doesn't know k after the first term, because semantic security. And so the second term is okay. *)
-  (* Really what's acceptable and what's not depends on the thing being evaluated *)
+  Definition dst' {t u}
+             (evil_rand_tape_len : nat -> nat)
+             (dst : forall (t: type) (eta : nat), Bvector (evil_rand_tape_len eta) -> interp_type t eta -> bool)
+             (eta : nat)
+             (evil_rand_tape: Bvector (evil_rand_tape_len eta)) (ctx : term_wh t u) (x : term t)
+             (adversary : forall eta : nat,
+                 Bvector (evil_rand_tape_len eta) ->
+                 interp_type list_message eta -> interp_type message eta) : bool :=
+    dst t eta evil_rand_tape (interp_term (fill ctx x) eta (adversary eta (evil_rand_tape))).
 
-  (*     Who knows?  *)
-  
-  (* ctx could contain a closure that contains x, or y, or some function of x or y. Then the problem becomes: *)
-  (*                                                                                                                 Can ctx distinguish between receiving x or y? Which is just solving distinguishability, which is insane. *)
+  Lemma indist_no_shared_randomness: forall {t u} (x: term t) (y: term t) (z: term u) (ctx: term_wh t u),
+      indist (fill ctx x) z ->
+      indist x y ->
+      indist (fill ctx y) z.
+  Proof.
+    intros.
+    transitivity (fill ctx x).
+    cbv [indist universal_security_game].
+    intros.
+    cbv [indist universal_security_game] in H0.
+
+
+  (* TODO: Prove for syntactic randomness *)
   Lemma indist_proper: forall {t u} (x: term t) (y : term t) (z : term u) (ctx: term (Type_arrow t u))
                          (H: indist (ctx @ x) z),
       indist x y ->
@@ -369,11 +410,41 @@ Section LateInterp.
       no_randomness_leaked y ctx ->
       indist (ctx @ y) z.
     intros.
-    setoid_rewrite <- H0.
+    transitivity (ctx @ x)%term.
+    (* E_k{x}, E_k'{k} ~ r1 r2 *)
+    (* Why can't you prove that if you can't compute the key, you can't decrypt the message? *)
+       (* - True in OTP, not in general *)
+      (* Can write in generalizing where no_randomless_leaked would be dependent on the encryption function you're using (e.g. IND-CCA, IND-CPA) *)
+    (* If you can decrypt the message, it doesn't imply that you can compute the key *)
+    (* In some crypto schemes, you can delegate the ability to decrypt. *)
+
+
+    (* Now we are basically asking if ctx can distinguish between x and y. *)
+    (* It can't if *)
+    (*     - 1. ctx is polynomial time *)
+    (*     - 2. But what if ctx already knows (has in its closure) some of the randomness in x or y? *)
+    (*          Therefore: ctx can't, in polynomial time, compute the randomness in x or y based on what it knows (because then it can branch on randomness values). (Actually, it's possible that computing some of the randomness would be okay?) *)
+
+    (* I attempt to encode 2 inside of no_randomness_leaked *)
+
+    (* Need: recursive definition of polytime that operates on Term_const functions *)
+    (* e.g. all composing definitions are polytime *)
+
+    (* Another question: how to represent ctx as thing with a hole? Right now it's a deep embedded *)
+    (* term application where the hole can only be on the very right. Use a Coq function and somehow
+     reason about it being polytime? *)
+    cbv [no_randomness_leaked] in H1.
+    Print term.
+    (* Add constructor for substituting with hole *)
+    (* Write a recursive function that goes from that substituting constructor to a term without that constructor *)
+    (* Add another inductive, term with hole *)
 
     cbv [indist universal_security_game]; intros.
     cbv [indist universal_security_game] in H0.
+    cbv [indist universal_security_game] in H.
     specialize (H0 adl adv dst).
+    specialize (H adl adv dst).
+
     SearchAbout negligible.
 
     Print negligible.
