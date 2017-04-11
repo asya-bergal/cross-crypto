@@ -205,14 +205,16 @@ Section Language.
 
   Section Security.
     (* the adversary is split into three parts for no particular reason. It first decides how much randomness it will need, then interacts with the protocol (repeated calls to [adverary] with all messages up to now as input), and then tries to claim victory ([distinguisher]). There is no explicit sharing of state between these procedures, but all of them get the same random inputs in the security game. The handling of state is a major difference between FCF [OracleComp] and this framework *)
+
+    (* TODO: Change adl to be function that goes from eta -> keys of randomness we need, change this definitoin approrpiately *)
     Definition universal_security_game 
-               (evil_rand_tape_len: forall eta:nat, nat)
-               (adversary:forall (eta:nat) (rand:Bvector (evil_rand_tape_len eta)), interp_type list_message eta -> interp_type message eta)
-               (distinguisher: forall {t} (eta:nat) (rand:Bvector (evil_rand_tape_len eta)), interp_type t eta -> Datatypes.bool)
+               (evil_rand_indices: forall eta:nat, PositiveSet.t)
+               (adversary:forall (eta:nat) (rands: PositiveMap.t (interp_type rand eta)), interp_type list_message eta -> interp_type message eta)
+               (distinguisher: forall {t} (eta:nat) (rands: PositiveMap.t (interp_type rand eta)), interp_type t eta -> Datatypes.bool)
                (eta:nat) {t:type} (e:term t) : Comp Datatypes.bool :=
-      evil_rand_tape <-$ {0,1}^(evil_rand_tape_len eta);
-        out <-$ interp_term e eta (adversary eta (evil_rand_tape));
-        ret (distinguisher eta evil_rand_tape out).
+        evil_rands <-$ generate_randomness eta (evil_rand_indices eta);
+        out <-$ interp_term e eta (adversary eta (evil_rands));
+        ret (distinguisher eta evil_rands out).
 
     Definition indist {t:type} (a b:term t) : Prop :=  forall adl adv dst,
         (* TODO: insert bounds on coputational complexity of [adv] and [dst] here *)
@@ -315,6 +317,40 @@ Section LateInterp.
     Admitted.
   End LateInterp.
 
+Section FillInterp.
+  Fixpoint interp_term_fill_fixed {holetype t eta}
+           (twh : term_wh holetype t) (filler : interp_type holetype eta)
+           (adv: interp_type list_message eta -> interp_type message eta)
+           (rands: PositiveMap.t (interp_type rand eta))
+    : interp_type t eta :=
+    match twh with
+    | Term_wh_const _ c =>  c eta
+    | Term_wh_random _ i => match PositiveMap.find i rands with Some r => r | _ => cast_rand eta (unreachable _) end
+    | Term_wh_adversarial _ ctx => adv (interp_term_fill_fixed ctx filler adv rands)
+    | Term_wh_app _ f x => (interp_term_fill_fixed f filler adv rands) (interp_term_fill_fixed x filler adv rands)
+    | Term_wh_hole _ => filler
+    end.
+
+  Fixpoint randomness_indices_wh {holetype t} (twh: term_wh holetype t) : PositiveSet.t :=
+    match twh with
+    | Term_wh_random _ idx => PositiveSet.singleton idx
+    | Term_wh_app _ f x => PositiveSet.union (randomness_indices_wh f) (randomness_indices_wh x)
+    | _ => PositiveSet.empty
+    end.
+
+  Definition interp_term_fill {holetype t eta}
+           (twh : term_wh holetype t) (filler : interp_type holetype eta)
+           (adv: interp_type list_message eta -> interp_type message eta)
+    : Comp (interp_type t eta)
+    := rands <-$ generate_randomness eta (randomness_indices_wh twh); ret (interp_term_fill_fixed twh filler adv rands).
+
+  Lemma interp_term_fill_correct {holetype t} (twh : term_wh holetype t) (x: term holetype) eta adv:
+    Comp_eq (filler <-$ interp_term x eta adv;
+               interp_term_fill twh filler adv)
+            (interp_term (fill twh x) eta adv).
+    Admitted.
+
+End FillInterp.
   (* One term is fresh in another if they don't share randomness. *)
   Definition fresh {T} {U} (x : term T) (y : term U) :=
     PositiveSet.eq (PositiveSet.inter (randomness_indices x) (randomness_indices y))
@@ -362,7 +398,7 @@ Section LateInterp.
 
   (* TODO: Make this a bijective map. *)
   (* 2016 paper encryption formalization *)
-  (* look into substitution into ctx inside the encryption lemma *)
+  (*look into substitution into ctx inside the encryption lemma *)
   (* E_k{x} ~ r *)
   Definition no_randomness_leaked {t u} (x: term t) (ctx : term (Type_arrow t u)) : Prop :=
     forall new_idxs: list positive,
@@ -370,25 +406,25 @@ Section LateInterp.
                                       (PositiveSet.elements (randomness_indices x))
                                       new_idxs))
              (ctx @ x).
-  (* ctx (xor x y) *)
-  (* x := xor x y *)
-  (* xor z z *)
 
-  About universal_security_game.
-  (* Definition no_shared_randomness {t u} (x : term t) (ctx: term_wh t u) : Prop. *)
-  (* dst' eta rand v = dst eta rand (interp evil_rand_tape (subst ctx v)) *)
-  About interp_term.
-  Print universal_security_game.
+  Lemma eqdec_type : forall (t u : type), {t = u} + {t <> u}.
+  Admitted.
 
-  Definition dst' {t u}
-             (evil_rand_tape_len : nat -> nat)
-             (dst : forall (t: type) (eta : nat), Bvector (evil_rand_tape_len eta) -> interp_type t eta -> bool)
+  (* TODO: I'm sorry this definition is in proof mode. *)
+  Definition dst' {t t' u}
+             (evil_rand_indices : nat -> PositiveSet.t)
+             (dst : forall (t: type) (eta : nat), PositiveMap.t (interp_type rand eta) -> interp_type t eta -> bool)
              (eta : nat)
-             (evil_rand_tape: Bvector (evil_rand_tape_len eta)) (ctx : term_wh t u) (x : term t)
-             (adversary : forall eta : nat,
-                 Bvector (evil_rand_tape_len eta) ->
-                 interp_type list_message eta -> interp_type message eta) : bool :=
-    dst t eta evil_rand_tape (interp_term (fill ctx x) eta (adversary eta (evil_rand_tape))).
+             (adv: interp_type list_message eta -> interp_type message eta)
+             (evil_rands : PositiveMap.t (interp_type rand eta))
+             (ctx : term_wh t u)
+             (x : interp_type t' eta)
+             : bool.
+    destruct (eqdec_type t t').
+    subst.
+    exact (dst u eta evil_rands (interp_term_fill_fixed ctx x adv evil_rands)).
+    exact false.
+  Defined.
 
   Lemma indist_no_shared_randomness: forall {t u} (x: term t) (y: term t) (z: term u) (ctx: term_wh t u),
       indist (fill ctx x) z ->
@@ -400,64 +436,70 @@ Section LateInterp.
     cbv [indist universal_security_game].
     intros.
     cbv [indist universal_security_game] in H0.
+    unfold interp_term.
+    specialize (H0 adl adv (fun (t : type) (eta : nat) (evil_rands: PositiveMap.t (interp_type rand eta)) (filler : interp_type t eta) => dst' adl dst eta (adv eta evil_rands) evil_rands ctx filler)).
+    cbv [dst'] in H0.
+    (* TODO: How do I deal with this? *)
+    assert (negligible
+         (fun eta : nat =>
+          | Pr [evil_rands <-$ generate_randomness eta (adl eta);
+              out <-$ interp_term x eta (adv eta evil_rands);
+              ret eq_rec_r (fun t : type => term_wh t u -> bool)
+                        (fun ctx : term_wh t u =>
+                         dst u eta evil_rands
+                           (interp_term_fill_fixed ctx out (adv eta evil_rands) evil_rands)) (eq_refl t) ctx]
+                   -
+          Pr [evil_rands <-$ generate_randomness eta (adl eta);
+              out <-$ interp_term y eta (adv eta evil_rands);
+              ret eq_rec_r (fun t : type => term_wh t u -> bool)
+                        (fun ctx : term_wh t u =>
+                         dst u eta evil_rands
+                           (interp_term_fill_fixed ctx out (adv eta evil_rands) evil_rands)) (eq_refl t) ctx] |)).
+    admit.
+    clear H0.
+    pose proof (@interp_term_fill_correct t).
+    cbv [interp_term_fill] in H0.
+    specialize (H0 u ctx x).
+    pose proof (fun (eta : nat) (evil_rands : PositiveMap.t (interp_type rand eta))
+                => H0 eta (adv eta evil_rands)). 
+    (* Dumb monad rewrites *)
+    assert (negligible
+         (fun eta : nat =>
+          |
+          Pr [evil_rands <-$ generate_randomness eta (adl eta);
+              out <-$ interp_term x eta (adv eta evil_rands);
+              res <-$ ret interp_term_fill_fixed ctx out (adv eta evil_rands) evil_rands;
+              ret eq_rec_r (fun t : type => term_wh t u -> bool)
+                  (fun ctx : term_wh t u =>
+                     dst u eta evil_rands res) eq_refl ctx ] -
+          Pr [evil_rands <-$ generate_randomness eta (adl eta);
+              out <-$ interp_term y eta (adv eta evil_rands);
+              res <-$ ret interp_term_fill_fixed ctx out (adv eta evil_rands) evil_rands;
+              ret eq_rec_r (fun t : type => term_wh t u -> bool)
+                  (fun ctx : term_wh t u =>
+                     dst u eta evil_rands res) eq_refl ctx ]
+          |)).
+    admit.
+    clear H1.
 
 
-  (* TODO: Prove for syntactic randomness *)
-  Lemma indist_proper: forall {t u} (x: term t) (y : term t) (z : term u) (ctx: term (Type_arrow t u))
-                         (H: indist (ctx @ x) z),
-      indist x y ->
-      no_randomness_leaked x ctx ->
-      no_randomness_leaked y ctx ->
-      indist (ctx @ y) z.
-    intros.
-    transitivity (ctx @ x)%term.
-    (* E_k{x}, E_k'{k} ~ r1 r2 *)
-    (* Why can't you prove that if you can't compute the key, you can't decrypt the message? *)
-       (* - True in OTP, not in general *)
-      (* Can write in generalizing where no_randomless_leaked would be dependent on the encryption function you're using (e.g. IND-CCA, IND-CPA) *)
-    (* If you can decrypt the message, it doesn't imply that you can compute the key *)
-    (* In some crypto schemes, you can delegate the ability to decrypt. *)
+    rewrite Comp_eq_swap in H0.
 
 
-    (* Now we are basically asking if ctx can distinguish between x and y. *)
-    (* It can't if *)
-    (*     - 1. ctx is polynomial time *)
-    (*     - 2. But what if ctx already knows (has in its closure) some of the randomness in x or y? *)
-    (*          Therefore: ctx can't, in polynomial time, compute the randomness in x or y based on what it knows (because then it can branch on randomness values). (Actually, it's possible that computing some of the randomness would be okay?) *)
+    (* OTP *)
+    (* "Nonuniform cracks in the concrete" (appendix) *) 
+    (* Decision Diffie-Hellman assumption *)
+    (* IND-CPA encryption *)
+    (* IND-CCA encryption - curve-CP *)
+    (* Hash Functions *)
+    (* Symmetric-key that's not OTP *)
+    (* Some assymetric-key primitive *)
+    (* """Kerberos (encryption with two keys) """ *)
+    (* Diffie Hellman key exchange, sigma-i, Hugo <something> , curve-CP*)
 
-    (* I attempt to encode 2 inside of no_randomness_leaked *)
+    Print interp_term.
+ Abort.
 
-    (* Need: recursive definition of polytime that operates on Term_const functions *)
-    (* e.g. all composing definitions are polytime *)
-
-    (* Another question: how to represent ctx as thing with a hole? Right now it's a deep embedded *)
-    (* term application where the hole can only be on the very right. Use a Coq function and somehow
-     reason about it being polytime? *)
-    cbv [no_randomness_leaked] in H1.
-    Print term.
-    (* Add constructor for substituting with hole *)
-    (* Write a recursive function that goes from that substituting constructor to a term without that constructor *)
-    (* Add another inductive, term with hole *)
-
-    cbv [indist universal_security_game]; intros.
-    cbv [indist universal_security_game] in H0.
-    cbv [indist universal_security_game] in H.
-    specialize (H0 adl adv dst).
-    specialize (H adl adv dst).
-
-    SearchAbout negligible.
-
-    Print negligible.
-    (* You need something about f being poly time here, for reals. *)
-    Lemma
-      negligible (fun eta : nat => f x)
-      -> negligible (fun eta : nat => f y).
-    Print iff.
-
-    apply eq_impl_negligible in H3.
-
-    apply Proper_Bind.
-    cbv [interp_term].
 
   Section OTP.
     Definition T' := interp_type message.
