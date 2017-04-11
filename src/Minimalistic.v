@@ -437,19 +437,20 @@ End FillInterp.
     intros.
     cbv [indist universal_security_game] in H0.
     unfold interp_term.
-    specialize (H0 adl adv (fun (t : type) (eta : nat) (evil_rands: PositiveMap.t (interp_type rand eta)) (filler : interp_type t eta) => dst' adl dst eta (adv eta evil_rands) evil_rands ctx filler)).
-    cbv [dst'] in H0.
+    pose (adl' := fun (eta : nat) => PositiveSet.union (adl eta) (randomness_indices_wh ctx)).
+    specialize (H0 adl' adv (fun (t : type) (eta : nat) (evil_rands: PositiveMap.t (interp_type rand eta)) (filler : interp_type t eta) => dst' adl' dst eta (adv eta evil_rands) evil_rands ctx filler)).
+    cbv [dst' adl'] in H0.
     (* TODO: How do I deal with this? *)
     assert (negligible
          (fun eta : nat =>
-          | Pr [evil_rands <-$ generate_randomness eta (adl eta);
+          | Pr [evil_rands <-$ generate_randomness eta (PositiveSet.union (adl eta) (randomness_indices_wh ctx));
               out <-$ interp_term x eta (adv eta evil_rands);
               ret eq_rec_r (fun t : type => term_wh t u -> bool)
                         (fun ctx : term_wh t u =>
                          dst u eta evil_rands
                            (interp_term_fill_fixed ctx out (adv eta evil_rands) evil_rands)) (eq_refl t) ctx]
                    -
-          Pr [evil_rands <-$ generate_randomness eta (adl eta);
+          Pr [evil_rands <-$ generate_randomness eta (PositiveSet.union (adl eta) (randomness_indices_wh ctx));
               out <-$ interp_term y eta (adv eta evil_rands);
               ret eq_rec_r (fun t : type => term_wh t u -> bool)
                         (fun ctx : term_wh t u =>
@@ -466,13 +467,13 @@ End FillInterp.
     assert (negligible
          (fun eta : nat =>
           |
-          Pr [evil_rands <-$ generate_randomness eta (adl eta);
+          Pr [evil_rands <-$ generate_randomness eta (PositiveSet.union (adl eta) (randomness_indices_wh ctx));
               out <-$ interp_term x eta (adv eta evil_rands);
               res <-$ ret interp_term_fill_fixed ctx out (adv eta evil_rands) evil_rands;
               ret eq_rec_r (fun t : type => term_wh t u -> bool)
                   (fun ctx : term_wh t u =>
                      dst u eta evil_rands res) eq_refl ctx ] -
-          Pr [evil_rands <-$ generate_randomness eta (adl eta);
+          Pr [evil_rands <-$  generate_randomness eta (PositiveSet.union (adl eta) (randomness_indices_wh ctx));
               out <-$ interp_term y eta (adv eta evil_rands);
               res <-$ ret interp_term_fill_fixed ctx out (adv eta evil_rands) evil_rands;
               ret eq_rec_r (fun t : type => term_wh t u -> bool)
@@ -481,8 +482,14 @@ End FillInterp.
           |)).
     admit.
     clear H1.
-
-
+    (* This should be true for some reason *)
+  assert (forall (eta : nat),
+       Comp_eq
+         (evil_rands <-$ generate_randomness eta (adl eta);
+          filler <-$ interp_term x eta (adv eta evil_rands);
+          rands <-$ generate_randomness eta (randomness_indices_wh ctx);
+          ret interp_term_fill_fixed ctx filler (adv eta evil_rands) rands)
+         (interp_term (fill ctx x) eta (adv eta evil_rands))).
     rewrite Comp_eq_swap in H0.
 
 
