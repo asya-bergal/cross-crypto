@@ -18,6 +18,7 @@ Require Import Coq.MSets.MSetProperties.
 Require Import Coq.FSets.FMapPositive.
 Require Import Coq.FSets.FMapFacts.
 Require Import Coq.FSets.FSetFacts.
+Require Import Coq.PArith.BinPosDef.
 Module PositiveMapFacts := FMapFacts.WFacts_fun PositiveMap.E PositiveMap.
 Module PositiveMapProperties := FMapFacts.WProperties_fun PositiveMap.E PositiveMap.
 Print PositiveSet.E.
@@ -426,6 +427,24 @@ End FillInterp.
     exact false.
   Defined.
 
+  Definition shift_up_set_indices (m : PositiveSet.t) (shift : positive) : PositiveSet.t :=
+    PositiveSet.fold
+      (fun (p : positive) (t : PositiveSet.t) => PositiveSet.add (p + shift) t) m PositiveSet.empty.
+
+
+  Print BinPosDef.Pos.sub.
+
+  Definition shift_down_map_indices {T : Type} (m : PositiveMap.t T) (shift : positive) : PositiveMap.t T :=
+    PositiveMap.fold
+      (fun (p : positive) (t : T) (m : PositiveMap.t T) => PositiveMap.add (BinPosDef.Pos.sub p shift) t m)
+      m (PositiveMap.empty T).
+
+  Definition defaulted_option {T U : Type} (f : T -> U) (o : option T) (default : U) : U :=
+    match o with
+    | Some r => f r
+    | None => default
+    end.
+
   Lemma indist_no_shared_randomness: forall {t u} (x: term t) (y: term t) (z: term u) (ctx: term_wh t u),
       indist (fill ctx x) z ->
       indist x y ->
@@ -437,62 +456,98 @@ End FillInterp.
     intros.
     cbv [indist universal_security_game] in H0.
     unfold interp_term.
-    pose (adl' := fun (eta : nat) => PositiveSet.union (adl eta) (randomness_indices_wh ctx)).
-    specialize (H0 adl' adv (fun (t : type) (eta : nat) (evil_rands: PositiveMap.t (interp_type rand eta)) (filler : interp_type t eta) => dst' adl' dst eta (adv eta evil_rands) evil_rands ctx filler)).
-    cbv [dst' adl'] in H0.
-    (* TODO: How do I deal with this? *)
-    assert (negligible
-         (fun eta : nat =>
-          | Pr [evil_rands <-$ generate_randomness eta (PositiveSet.union (adl eta) (randomness_indices_wh ctx));
-              out <-$ interp_term x eta (adv eta evil_rands);
-              ret eq_rec_r (fun t : type => term_wh t u -> bool)
-                        (fun ctx : term_wh t u =>
-                         dst u eta evil_rands
-                           (interp_term_fill_fixed ctx out (adv eta evil_rands) evil_rands)) (eq_refl t) ctx]
-                   -
-          Pr [evil_rands <-$ generate_randomness eta (PositiveSet.union (adl eta) (randomness_indices_wh ctx));
-              out <-$ interp_term y eta (adv eta evil_rands);
-              ret eq_rec_r (fun t : type => term_wh t u -> bool)
-                        (fun ctx : term_wh t u =>
-                         dst u eta evil_rands
-                           (interp_term_fill_fixed ctx out (adv eta evil_rands) evil_rands)) (eq_refl t) ctx] |)).
-    admit.
-    clear H0.
+    pose (adl' := fun (eta : nat) =>
+                    PositiveSet.union
+                      (defaulted_option (shift_up_set_indices (adl eta))
+                                        (PositiveSet.max_elt (randomness_indices_wh ctx))
+                                        (adl eta))
+                      (randomness_indices_wh ctx)).
+
+    pose (adv' := fun (eta : nat) (m : PositiveMap.t (interp_type rand eta)) =>
+                    adv eta (defaulted_option (shift_down_map_indices m)
+                                              (PositiveSet.max_elt (randomness_indices_wh ctx))
+                                              m)).
+
+    specialize (H0 adl' adv' (fun (t : type) (eta : nat) (evil_rands: PositiveMap.t (interp_type rand eta)) (filler : interp_type t eta) => dst' adl' dst eta (adv' eta evil_rands) evil_rands ctx filler)).
+    cbv [dst' adl' adv'] in H0.
+    Require Import Coq.Logic.Eqdep.
+
+    destruct (eqdec_type t t) in H0.
+    cbv [eq_rec_r eq_rec eq_rect] in H0.
+    rewrite (UIP_refl type t e) in H0.
+    cbv [eq_sym] in H0.
+
     pose proof (@interp_term_fill_correct t).
-    cbv [interp_term_fill] in H0.
-    specialize (H0 u ctx x).
+    cbv [interp_term_fill] in H1.
+    specialize (H1 u ctx x).
     pose proof (fun (eta : nat) (evil_rands : PositiveMap.t (interp_type rand eta))
-                => H0 eta (adv eta evil_rands)). 
+                => H1 eta (adv' eta evil_rands)).
     (* Dumb monad rewrites *)
     assert (negligible
          (fun eta : nat =>
           |
-          Pr [evil_rands <-$ generate_randomness eta (PositiveSet.union (adl eta) (randomness_indices_wh ctx));
-              out <-$ interp_term x eta (adv eta evil_rands);
-              res <-$ ret interp_term_fill_fixed ctx out (adv eta evil_rands) evil_rands;
-              ret eq_rec_r (fun t : type => term_wh t u -> bool)
-                  (fun ctx : term_wh t u =>
-                     dst u eta evil_rands res) eq_refl ctx ] -
-          Pr [evil_rands <-$  generate_randomness eta (PositiveSet.union (adl eta) (randomness_indices_wh ctx));
-              out <-$ interp_term y eta (adv eta evil_rands);
-              res <-$ ret interp_term_fill_fixed ctx out (adv eta evil_rands) evil_rands;
-              ret eq_rec_r (fun t : type => term_wh t u -> bool)
-                  (fun ctx : term_wh t u =>
-                     dst u eta evil_rands res) eq_refl ctx ]
-          |)).
+          Pr [evil_rands <-$
+              generate_randomness eta
+                (PositiveSet.union
+                   (defaulted_option (shift_up_set_indices (adl eta))
+                      (PositiveSet.max_elt (randomness_indices_wh ctx)) (adl eta))
+                   (randomness_indices_wh ctx));
+              out <-$ interp_term x eta
+                  (adv eta
+                       (defaulted_option (shift_down_map_indices evil_rands)
+                                         (PositiveSet.max_elt (randomness_indices_wh ctx)) evil_rands));
+              res <-$ ret (interp_term_fill_fixed ctx out
+                       (adv eta
+                          (defaulted_option (shift_down_map_indices evil_rands)
+                             (PositiveSet.max_elt (randomness_indices_wh ctx)) evil_rands)) evil_rands);
+              ret dst u eta evil_rands res] -
+          Pr [evil_rands <-$
+              generate_randomness eta
+                (PositiveSet.union
+                   (defaulted_option (shift_up_set_indices (adl eta))
+                      (PositiveSet.max_elt (randomness_indices_wh ctx)) (adl eta))
+                   (randomness_indices_wh ctx));
+              out <-$ interp_term y eta
+                  (adv eta
+                       (defaulted_option (shift_down_map_indices evil_rands)
+                                         (PositiveSet.max_elt (randomness_indices_wh ctx)) evil_rands));
+              res <-$ ret (interp_term_fill_fixed ctx out
+                       (adv eta
+                          (defaulted_option (shift_down_map_indices evil_rands)
+                             (PositiveSet.max_elt (randomness_indices_wh ctx)) evil_rands)) evil_rands);
+              ret dst u eta evil_rands res] |)).
     admit.
-    clear H1.
+    clear H0.
+    (* can split into two: *)
+    (*   evil_rands, used for the randomness of the adversary, evil_rands in h2 initialized using randomness generated from adl eta *)
+    (*   rands, used only for interpreting ctx *)
+
+    (* Needed lemma: *)
+    (*   if you have a map, and one function uses only one part of the map, and the other uses only the other, you can split it up *)
+                                                                                                            
+    (* First problem: how to talk about adversary "using" randomness in this lemma.
+       Right now this is the only way to do it. *)
+    Lemma Comp_eq_split_map : forall (t u : type) (ctx : term_wh t u) (x : term t) (s1 s2 : PositiveSet.t)
+                                (adv : forall eta : nat, PositiveMap.t (interp_type rand eta) -> interp_type list_message eta -> interp_type message eta) (eta : nat), 
+      Comp_eq (rands <-$ generate_randomness eta (PositiveSet.union s1 (randomness_indices_wh ctx));
+               x1 <-$ interp_term x eta (adv eta rands);
+               ret interp_term_fill_fixed ctx x1 (adv eta rands) rands)
+              (evil_rands <-$ generate_randomness eta s1;
+               rands <-$ generate_randomness eta (randomness_indices_wh ctx);
+               x1 <-$ interp_term x eta (adv eta evil_rands);
+               ret interp_term_fill_fixed ctx x1 (adv eta evil_rands) rands).
+
+
+
+
+    split up into two randomnesses
+    
+    (* Calculate max randomness of randomness_indices_wh ctx, then take the adl eta randomness and shift it up by that amount for each index *)
+    (*                                                                                                         then in that second function, use an adv that takes in the new remapped randomnesses and fills the min for the new one *)
+    (*                                                                                                         gotta prove that adv equal *)
+    
+    
     (* This should be true for some reason *)
-  assert (forall (eta : nat),
-       Comp_eq
-         (evil_rands <-$ generate_randomness eta (adl eta);
-          filler <-$ interp_term x eta (adv eta evil_rands);
-          rands <-$ generate_randomness eta (randomness_indices_wh ctx);
-          ret interp_term_fill_fixed ctx filler (adv eta evil_rands) rands)
-         (interp_term (fill ctx x) eta (adv eta evil_rands))).
-    rewrite Comp_eq_swap in H0.
-
-
     (* OTP *)
     (* "Nonuniform cracks in the concrete" (appendix) *) 
     (* Decision Diffie-Hellman assumption *)
@@ -506,7 +561,6 @@ End FillInterp.
 
     Print interp_term.
  Abort.
-
 
   Section OTP.
     Definition T' := interp_type message.
