@@ -268,9 +268,8 @@ Section Language.
 
   Section Security.
     (* the adversary is split into three parts for no particular reason. It first decides how much randomness it will need, then interacts with the protocol (repeated calls to [adverary] with all messages up to now as input), and then tries to claim victory ([distinguisher]). There is no explicit sharing of state between these procedures, but all of them get the same random inputs in the security game. The handling of state is a major difference between FCF [OracleComp] and this framework *)
-    
 (* TODO: Change adl to be function that goes from eta -> keys of randomness we need, change this definitoin approrpiately *)
-    Definition universal_security_game 
+    Definition universal_security_game
                (evil_rand_indices: forall eta:nat, PositiveSet.t)
                (adversary:forall (eta:nat) (rands: PositiveMap.t (interp_type rand eta)), interp_type list_message eta -> interp_type message eta)
                (distinguisher: forall {t} (eta:nat) (rands: PositiveMap.t (interp_type rand eta)), interp_type t eta -> Datatypes.bool)
@@ -315,7 +314,7 @@ Section Language.
       cbv [Reflexive indist universal_security_game eqwhp whp interp_term]; intros.
       apply eq_impl_negligible; intro eta.
       eapply Proper_Bind; [reflexivity|]; intros ? ? ?; subst.
-      eapply Proper_Bind; [|intros ? ? ?; subst; reflexivity]. 
+      eapply Proper_Bind; [|intros ? ? ?; subst; reflexivity].
       simpl interp_term_fixed.
       etransitivity.
       { eapply Proper_Bind; [reflexivity|]; intros ? ? ?; subst.
@@ -347,7 +346,7 @@ Section LateInterp.
         end
       | Term_adversarial ctx =>
         ctx <-$ interp_term_late ctx eta adv fixed_rand; ret (adv ctx)
-      | Term_app f x => 
+      | Term_app f x =>
         common_rand <-$ generate_randomness eta (PositiveSet.inter (randomness_indices x) (randomness_indices f));
           let rands := PositiveMapProperties.update common_rand fixed_rand in
           x <-$ interp_term_late x eta adv rands;
@@ -366,7 +365,7 @@ Section LateInterp.
       { rewrite Bind_unused. reflexivity. }
       { admit. }
       { admit. }
-      { 
+      {
     Admitted.
     Lemma interp_term_late_correct {t} (e:term t) eta adv :
       Comp_eq (interp_term_late e eta adv (PositiveMap.empty _))
@@ -427,7 +426,7 @@ End FillInterp.
     apply PositiveSet.empty_spec.
   Qed.
 
-  Ltac indistify := 
+  Ltac indistify :=
     intros;
     cbv [indist universal_security_game]; intros;
     apply eq_impl_negligible; cbv [pointwise_relation]; intros eta;
@@ -452,7 +451,7 @@ End FillInterp.
     match from with
     | nil => x
     | hd :: tl => match to with
-                 | nil => x 
+                 | nil => x
                  | hd' :: tl' => replace_randomness
                                   (replace_individual_randomness x hd hd') tl tl'
                  end
@@ -515,7 +514,7 @@ End FillInterp.
 
   Definition pmap_diff {T : Type} (m : PositiveMap.t T) (sub : PositiveSet.t) : PositiveMap.t T :=
     pmap_diff' m (PositiveSet.elements sub).
-  
+
   Lemma pmap_diff_disjoint : forall (T : Type) (m : PositiveMap.t T) (sub : PositiveSet.t),
       (forall x, PositiveSet.In x sub -> ~PositiveMap.In x m) ->
       PositiveMap.Equal (pmap_diff m sub) m.
@@ -530,7 +529,7 @@ End FillInterp.
   Admitted.
 
   (* About evalDet_equiv. *)
-  Lemma Comp_eq_split : forall (A B C D : Set) (H : EqDec D) (f f1 f2 : Comp A) (g1 : A -> Comp B) (g2 : A -> Comp C) (h : B -> C -> D), 
+  Lemma Comp_eq_split : forall (A B C D : Set) (H : EqDec D) (f f1 f2 : Comp A) (g1 : A -> Comp B) (g2 : A -> Comp C) (h : B -> C -> D),
       Comp_eq (x <-$ f;
                y1 <-$ g1 x;
                y2 <-$ g2 x;
@@ -540,7 +539,8 @@ End FillInterp.
                y1 <-$ g1 x1;
                y2 <-$ g2 x2;
                ret h y1 y2).
-              
+
+    Admitted.
   (* Lemma interp_term_fill_fixed_randomness : forall (t u : type) (ctx : term_wh t u), *)
   (*     Comp_eq (rands <-$ generate_randomness eta (PositiveSet.union s1 (randomness_indices_wh ctx))); *)
   (*       ret interp_term_fill_fixed ctx x1  *)
@@ -550,7 +550,7 @@ End FillInterp.
   (* 2. How to, in general, say something about generate_randomness? *)
   Lemma Comp_eq_split_map : forall (t u : type) (ctx : term_wh t u) (x : term t) (eta : nat) (s1 : PositiveSet.t)
                               (adv : forall eta : nat, PositiveMap.t (interp_type rand eta) -> interp_type list_message eta -> interp_type message eta)
-                              (dst : forall (t : type) (eta : nat), PositiveMap.t (interp_type rand eta) -> interp_type t eta -> bool) 
+                              (dst : forall (t : type) (eta : nat), PositiveMap.t (interp_type rand eta) -> interp_type t eta -> bool)
       (H : PositiveSet.Equal (PositiveSet.inter s1 (randomness_indices_wh ctx)) PositiveSet.empty),
       (* TODO : Disjointness of s1, randomness_indices, ctx randomness and x1 randomness *)
 
@@ -566,9 +566,9 @@ End FillInterp.
     (* intros. *)
     (* pose proof (generate_randomness_map s1 (randomness_indices_wh ctx) eta). *)
     Admitted.
-    
 
-  Lemma Comp_eq_shift_pmap_diff (s1 s2 : PositiveSet.t) (eta : nat): 
+
+  Lemma Comp_eq_shift_pmap_diff (s1 s2 : PositiveSet.t) (eta : nat):
 
     Comp_eq (rands <-$ generate_randomness eta (defaulted_option (shift_up_set_indices s1)
                                                                  (PositiveSet.max_elt s2) s1);
@@ -588,7 +588,7 @@ End FillInterp.
     (*   rewrite PositiveSet.fold_spec. *)
     (*   (* rewrite <- H. *) *)
 
-      
+
     (*   (* setoid_rewrite PositiveMap.fold_1. *) *)
 
     (*   (* Proper (eq ==> Comp_eq) Ret @ *) *)
@@ -673,7 +673,7 @@ End FillInterp.
          cut (forall (n : nat), (fun (eta : nat) => | Pr [ X ] - Pr [ Y ] | ) n ==
                          (fun (eta : nat) => | Pr [ f1 eta ] - Pr [ f2 eta ] | ) n); [
          let E := fresh "E" in intro E;
-         let negeq := fresh "negeq" in 
+         let negeq := fresh "negeq" in
 
          pose proof (@negligible_eq (fun (eta : nat) => | Pr [ X ] - Pr [ Y  ] | )
                                     (fun (eta : nat) => | Pr [ f1 eta ] - Pr [ f2 eta ] | ) H) as negeq;
@@ -718,7 +718,7 @@ End FillInterp.
     cbv [eq_sym] in indistxy.
 
     (* Dumb monad rewrites *)
-    compeqify 
+    compeqify
          (fun eta : nat =>
           evil_rands <-$
               generate_randomness eta
@@ -755,7 +755,7 @@ End FillInterp.
     clear indistxy E.
 
     (* Rewriting inside using split_eq *)
-    compeqify 
+    compeqify
          (fun eta : nat =>
           evil_rands <-$
               generate_randomness eta (defaulted_option (shift_up_set_indices (adl eta))
@@ -797,7 +797,7 @@ End FillInterp.
     specialize (split_map (inter_with_max_empty (adl eta) (randomness_indices_wh ctx))).
     cbv beta in split_map; assumption.
 
-    pose proof (Comp_eq_split_map t u ctx x eta 
+    pose proof (Comp_eq_split_map t u ctx x eta
         (defaulted_option (shift_up_set_indices (adl eta))
         (PositiveSet.max_elt (randomness_indices_wh ctx)) (adl eta))
         (fun (eta : nat) (p : PositiveMap.t (interp_type rand eta)) => adv eta (defaulted_option (shift_down_map_indices p) (PositiveSet.max_elt (randomness_indices_wh ctx)) p))
@@ -807,7 +807,7 @@ End FillInterp.
     clear negeq E.
 
     (* Now using Hfill to replace the interp_term_fill_fixed with interp-term. *)
-    compeqify 
+    compeqify
          (fun eta : nat =>
           evil_rands <-$
               generate_randomness eta (defaulted_option (shift_up_set_indices (adl eta))
@@ -931,7 +931,7 @@ End FillInterp.
     clear negeq0 E.
 
     (* Now removing the pmap_diffs using Comp_eq_shift_pmap_diff *)
-    compeqify 
+    compeqify
          (fun eta : nat =>
           evil_rands <-$
               generate_randomness eta (defaulted_option (shift_up_set_indices (adl eta))
@@ -1061,9 +1061,9 @@ End FillInterp.
 
     cbv beta in *.
 
-    SearchAbout (( <-$ ) _ _)
+    (* SearchAbout (( <-$ ) _ _) *)
     (* More monad rewrites. *)
-    compeqify 
+    compeqify
          (fun eta : nat => temp <-$
           (evil_rands <-$
               generate_randomness eta (defaulted_option (shift_up_set_indices (adl eta))
@@ -1096,7 +1096,7 @@ End FillInterp.
     reflexivity.
 
     clear negeq0 E.
-    compeqify 
+    compeqify
          (fun eta : nat => temp <-$
           (evil_rands <-$
               generate_randomness eta (adl eta);
@@ -1155,12 +1155,12 @@ End FillInterp.
     assumption.
 Qed.
     (* OTP *)
-    (* "Nonuniform cracks in the concrete" (appendix) *) 
+    (* "Nonuniform cracks in the concrete" (appendix) *)
 
     (* Symmetric-key that's not OTP *)
     (* """Kerberos (encryption with two keys) """ *)
-    (* IND-CCA encryption - curve-CP *) ==? 
-    (* Decision Diffie-Hellman assumption *) ==?
+    (* IND-CCA encryption - curve-CP *) 
+    (* Decision Diffie-Hellman assumption *)
     (* Hash functions *)
     (* Some assymetric-key primitive *)
     (* Diffie Hellman key exchange, sigma-i, Hugo <something> , curve-CP*)
@@ -1168,12 +1168,12 @@ Qed.
   Section OTP.
     Definition T' := interp_type message.
     Hypothesis T'_EqDec : forall (eta : nat), EqDec (T' eta).
-    Variable RndT'_symbolic : forall (eta : nat), interp_type (rand -> message) eta. 
+    Variable RndT'_symbolic : forall (eta : nat), interp_type (rand -> message) eta.
     Definition RndT' := fun (eta : nat) => x <-$ {0,1}^(len_rand eta);
                                         ret (RndT'_symbolic eta (cast_rand eta x)).
     Variable T_op' : forall (eta : nat), interp_type (message -> message -> message)%term eta.
     Hypothesis op_assoc' : forall (eta : nat), forall x y z, T_op' eta (T_op' eta x y) z = T_op' eta x (T_op' eta y z).
-    Variable T_inverse' : forall (eta : nat), interp_type(message -> message)%term eta. 
+    Variable T_inverse' : forall (eta : nat), interp_type(message -> message)%term eta.
     Variable T_ident' : forall (eta : nat), T' eta.
     Hypothesis inverse_l_ident' : forall (eta : nat), forall x, T_op' eta (T_inverse' eta x) x = T_ident' eta.
     Hypothesis inverse_r_ident' : forall (eta : nat), forall x, T_op' eta x (T_inverse' eta x) = T_ident' eta.
