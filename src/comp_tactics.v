@@ -24,23 +24,58 @@ Qed.
 
 (* General lemma that helps do what I want *)
 Ltac brewrite lemma :=
-  first [ rewrite lemma | etransitivity; [ eapply Proper_Bind; [ reflexivity | do 3 intro; brewrite lemma] | ] ].
+  first [ rewrite lemma; reflexivity | etransitivity; [ eapply Proper_Bind; [ reflexivity | do 3 intro; brewrite lemma] | ] ].
   
 (* Ltac cswap subexpr := *)
 (*   match goal with *)
 (*     | [ |- Comp_eq ( context[_ <-$ ?c1; _ <-$ ?c2;  *)
 Lemma harder_swap_test : Comp_eq (z <-$ {0,1}; x <-$ {0,1}; y <-$ {0,1}; ret x && y) (y <-$ {0,1}; z <-$ {0,1}; x <-$ {0,1}; ret x && y).
 
-  apply Comp_eq_symmetry.
+  (* eapply Proper_Bind. *)
+  (* reflexivity. *)
+  (* do 3 intro. *)
+  (* rewrite (Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ (fun (x : bool) (y : bool) => ret x && y)). *)
+  (* apply Comp_eq_symmetry. *)
+  (* etransitivity. *)
+  (* (* Set Printing All. *) *)
+  (* (* Show. *) *)
+  (* rewrite (Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ (fun (_ : bool) (x0 : bool) => ret x0 && y)). *)
 
+  apply Comp_eq_symmetry.
+  (* rewrite (Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ (fun (_ : bool) (x : bool) => ret x && y)). *)
   etransitivity.
   eapply Proper_Bind.
   reflexivity.
   do 3 intro.
-  assert (Comp_eq
-    (_ <-$ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m);
-     x0 <-$ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m); ret x0 && x) (ret y)).
-Admitted.
+  etransitivity.
+  rewrite (Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ (fun (_ : bool) (x0 : bool) => ret x0 && _)).
+  reflexivity.
+  subst.
+  lazymatch goal with |- ?R ?LHS (?e ?x) =>
+                      let LHS' := eval pattern x in LHS in
+                          lazymatch LHS' with ?f x =>
+                                              instantiate (1:=f)
+                          end
+  end; reflexivity.
+  Admitted.
+
+
+  
+
+
+
+(*   etransitivity. *)
+(*   eapply Proper_Bind. *)
+(*   reflexivity. *)
+(*   do 3 intro. *)
+(*   rewrite (Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ (fun (_ : bool) (x0 : bool) => ret x0 && x)). *)
+
+(*   assert (Comp_eq *)
+(*     (_ <-$ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m); *)
+(*      x0 <-$ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m); ret x0 && x) (ret y)). *)
+(*   Set Printing All. *)
+(*   Show. *)
+(* Admitted. *)
  (*  rewrite (Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ (fun (x : bool) (y : bool) => ret x && y)). *)
  (*  rewrite (Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ (fun (x : bool) (y : bool) => ret x && y)). *)
 
