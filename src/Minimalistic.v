@@ -24,6 +24,35 @@ Module PositiveMapProperties := FMapFacts.WProperties_fun PositiveMap.E Positive
 Print PositiveSet.E.
 Module PositiveSetProperties := MSetProperties.WPropertiesOn PositiveSet.E MSetPositive.PositiveSet.
 
+Ltac solve_Proper_eqs :=
+  idtac;
+  lazymatch goal with
+  | [ |- Proper _ _ ] => apply @reflexive_proper; solve_Proper_eqs
+  | [ |- Reflexive (_ ==> _)%signature ]
+    => apply @reflexive_eq_dom_reflexive; solve_Proper_eqs
+  | [ |- Reflexive _ ] => try apply eq_Reflexive
+  end.
+Ltac is_evar_or_eq e :=
+  first [ is_evar e
+        | match e with
+          | eq => idtac
+          end ].
+Ltac is_evar_or_eq_or_evar_free e :=
+  first [ is_evar_or_eq e
+        | try (has_evar e; fail 1) ].
+Hint Extern 1 (Proper ?e _) =>
+is_evar_or_eq e; solve_Proper_eqs : typeclass_instances.
+Hint Extern 1 (Proper (?e1 ==> ?e2) _) =>
+is_evar_or_eq e1; is_evar_or_eq_or_evar_free e2; solve_Proper_eqs : typeclass_instances.
+Hint Extern 1 (Proper (?e1 ==> ?e2 ==> ?e3) _) =>
+is_evar_or_eq e1; is_evar_or_eq e2; is_evar_or_eq_or_evar_free e3; solve_Proper_eqs : typeclass_instances.
+Hint Extern 1 (Proper (?e1 ==> ?e2 ==> ?e3 ==> ?e4) _) =>
+is_evar_or_eq e1; is_evar_or_eq e2; is_evar_or_eq e3; is_evar_or_eq_or_evar_free e4; solve_Proper_eqs : typeclass_instances.
+Hint Extern 1 (Proper (?e1 ==> ?e2 ==> ?e3 ==> ?e4 ==> ?e5) _) =>
+is_evar_or_eq e1; is_evar_or_eq e2; is_evar_or_eq e3; is_evar_or_eq e4; is_evar_or_eq_or_evar_free e5; solve_Proper_eqs : typeclass_instances.
+Hint Extern 1 (Proper (?e1 ==> ?e2 ==> ?e3 ==> ?e4 ==> ?e5 ==> ?e6) _) =>
+is_evar_or_eq e1; is_evar_or_eq e2; is_evar_or_eq e3; is_evar_or_eq e4; is_evar_or_eq e5; is_evar_or_eq_or_evar_free e6; solve_Proper_eqs : typeclass_instances.
+
 Section TODO.
 
   Global Instance Proper_Ret {A} {R} : Proper (R ==> pointwise_relation _ Comp_eq) (@Ret A).
@@ -304,7 +333,6 @@ Section Language.
 
   Definition whp (e:term sbool) := indist e (const strue).
 
-  Locate comp_spec_eq_rel_Reflexive.
   Section Equality.
     Definition const_eqb t : term (t -> t -> sbool) :=
       @Term_const
@@ -324,10 +352,9 @@ Section Language.
       eapply (@Proper_evalDist).
       eapply (@Proper_Bind); [reflexivity|intro].
       eapply (@Proper_Bind).
-      eapply (@Proper_Bind); [reflexivity|intro].
-      (* Set Typeclasses Debug. Set Printing Implicit. *)
-      pose (_: (Proper (_ ==> _ ==> _) (@Ret (interp_type sbool eta)))). (* fails without this *)
+      Set Typeclasses Debug. Set Printing Implicit.
       timeout 10 setoid_rewrite eqb_refl.
+      eapply (@Proper_Bind); [reflexivity|intro].
 
       replace
              (interp_term_fixed x eta (adv eta a) a0
