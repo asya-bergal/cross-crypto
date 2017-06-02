@@ -27,17 +27,11 @@ Definition image_relation {T} (R:T->T->Prop) {A} (f:A->T) := fun x y => R (f x) 
 Global Instance Equivalence_image_relation {T R} {Equivalence_R:Equivalence R} {A} (f:A->T) :
   Equivalence (image_relation R f).
 Proof. destruct Equivalence_R; split; cbv; eauto. Qed.
-Definition Distribution_eq {A} := pointwise_relation A eqRat.
 
-Global Instance Equivalence_Distribution_eq {A} : Equivalence (@Distribution_eq A).
-Proof.
-  split; repeat intro; eauto using (@symmetry _ eqRat _), (@transitivity _ eqRat _) with rat.
-Qed.
-
-Definition Comp_eq {A} := image_relation Distribution_eq (@evalDist A).
+Definition Comp_eq {A} := image_relation (pointwise_relation _ eqRat) (@evalDist A).
 Global Instance Equivalence_Comp_eq {A} : Equivalence (@Comp_eq A) := _.
 
-Global Instance Proper_evalDist {A} : Proper (Comp_eq ==> Distribution_eq) (@evalDist A).
+Global Instance Proper_evalDist {A} : Proper (Comp_eq ==> pointwise_relation _ eqRat) (@evalDist A).
 Proof. exact (fun _ _ => id). Qed.
 
 Global Instance Proper_getSupport {A} : Proper (Comp_eq ==> (@Permutation.Permutation _)) (@getSupport A).
@@ -53,21 +47,21 @@ Proof.
   simpl; f_equiv; eauto.
 Qed.
 
-Global Instance Proper_sumList_permutation {A:Set} : Proper ((@Permutation.Permutation A) ==> (Logic.eq ==> eqRat) ==> eqRat) (@sumList A).
+Global Instance Proper_sumList_permutation {A:Set} : Proper ((@Permutation.Permutation A) ==> (pointwise_relation _ eqRat) ==> eqRat) (@sumList A).
 Proof.
   intros ? ? H; induction H; repeat intro; cbv [respectful] in *; rewrite ?sumList_cons.
   { eauto with rat. }
   { f_equiv; eauto. }
-  { repeat rewrite H by reflexivity.
+  { cbv [pointwise_relation] in H; repeat rewrite H.
     repeat rewrite <-ratAdd_assoc.
     rewrite (ratAdd_comm (y0 y)).
     f_equiv.
-    eapply (Proper_sumList(R:=Logic.eq)); eauto; reflexivity. }
+    eapply (Proper_sumList(R:=Logic.eq)); eauto; repeat intro; subst; auto; reflexivity. }
   { etransitivity; [eapply IHPermutation1 | eapply IHPermutation2];
       intros; subst; (try match goal with H1:_ |- _ => eapply H1 end;reflexivity). }
 Qed.
 
-Global Instance Proper_Bind {A B} : Proper (Comp_eq ==> (Logic.eq==>Comp_eq) ==> Comp_eq) (@Bind A B).
+Global Instance Proper_Bind {A B} : Proper (Comp_eq ==> (pointwise_relation _ Comp_eq) ==> Comp_eq) (@Bind A B).
 Proof.
   intros ?? H ?? G ?. simpl evalDist.
 
@@ -76,10 +70,10 @@ Proof.
   eapply Proper_sumList_permutation.
   eapply Proper_getSupport.
   eassumption.
-  intros ? ? ?; subst.
+  intros ?.
   f_equiv.
   { eapply Proper_evalDist. assumption. }
-  { eapply Proper_evalDist. eapply G. reflexivity. }
+  { eapply Proper_evalDist. eapply G. }
 Qed.
 
 Lemma eq_impl_negligible : forall A (x y : nat -> Comp A), pointwise_relation _ Comp_eq x y -> forall t, negligible (fun eta : nat => | evalDist (x eta) t - evalDist (y eta) t|).
@@ -102,8 +96,8 @@ Lemma Comp_eq_evalDist A (x y:Comp A) :
   <-> Comp_eq x y.
 Proof.
   split; intro.
-  { cbv [Comp_eq Distribution_eq pointwise_relation image_relation]; assumption. }
-  { cbv [Comp_eq Distribution_eq pointwise_relation image_relation] in H; assumption. }
+  { cbv [Comp_eq pointwise_relation image_relation]; assumption. }
+  { cbv [Comp_eq pointwise_relation image_relation] in H; assumption. }
 Qed.
 
 (* TODO: This should be a two-way lemma *)

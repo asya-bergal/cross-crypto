@@ -26,10 +26,12 @@ Module PositiveSetProperties := MSetProperties.WPropertiesOn PositiveSet.E MSetP
 
 Section TODO.
 
-    (* Global Instance Proper_Ret {A} {eq_dec_A:eq_dec A} : Proper (Logic.eq==>Comp_eq) (@Ret A eq_dec_A). *)
-    (* Proof. *)
-    (*   intros ???. subst. reflexivity. *)
-    (* Qed. *)
+  Global Instance Proper_Ret {A} {R} : Proper (R ==> pointwise_relation _ Comp_eq) (@Ret A).
+  Proof.
+    intros eq1 eq2 ? x1 x2.
+    cbv [Comp_eq image_relation pointwise_relation evalDist].
+    destruct (eq1 x1 x2), (eq2 x1 x2); (congruence||reflexivity).
+  Qed. 
     (* Goal Comp_eq (a <-$ ret 0; b <-$ ret 1; ret ((a*a) + (b-b)))%nat (ret 0)%nat. *)
     (* Goal Comp_eq (a <-$ ret 0; b <-$ ret 1; ret ((a*a)))%nat (ret 0)%nat. *)
     (* Goal Comp_eq (a <-$ ret 0; ret ((a*a)))%nat (ret 0)%nat. *)
@@ -302,6 +304,7 @@ Section Language.
 
   Definition whp (e:term sbool) := indist e (const strue).
 
+  Locate comp_spec_eq_rel_Reflexive.
   Section Equality.
     Definition const_eqb t : term (t -> t -> sbool) :=
       @Term_const
@@ -309,21 +312,55 @@ Section Language.
         (fun eta x1 x2 => if eqb x1 x2 then strue eta else sfalse eta).
     Definition eqwhp {t:type} (e1 e2:term t) : Prop := whp (const_eqb t @ e1 @ e2)%term.
 
+    Existing Instance eq_Reflexive | 0.
+    Existing Instance eq_equivalence | 0.
     Global Instance Reflexive_eqwhp {t} : Reflexive (@eqwhp t).
     Proof.
       cbv [Reflexive indist universal_security_game eqwhp whp interp_term]; intros.
-      apply eq_impl_negligible; intro eta.
-      eapply Proper_Bind; [reflexivity|]; intros ? ? ?; subst.
-      eapply Proper_Bind; [|intros ? ? ?; subst; reflexivity].
-      simpl interp_term_fixed.
-      etransitivity.
-      { eapply Proper_Bind; [reflexivity|]; intros ? ? ?; subst.
-        (* TODO: why can't we do this earlier (under binders) using setoid_rewrite? *)
-        rewrite eqb_refl.
-        instantiate (1:=fun _ => ret strue eta); cbv beta.
-        reflexivity. }
-      rewrite 2Bind_unused.
-      reflexivity.
+      cbn [interp_term_fixed const_eqb].
+
+      eapply Proper_negligible. intro eta.
+      eapply ratDistance_eqRat_mor_Proper.
+      eapply (@Proper_evalDist).
+      eapply (@Proper_Bind); [reflexivity|intro].
+      eapply (@Proper_Bind).
+      eapply (@Proper_Bind); [reflexivity|intro].
+      (* Set Typeclasses Debug. Set Printing Implicit. *)
+      pose (_: (Proper (_ ==> _ ==> _) (@Ret (interp_type sbool eta)))). (* fails without this *)
+      timeout 10 setoid_rewrite eqb_refl.
+
+      replace
+             (interp_term_fixed x eta (adv eta a) a0
+                               ?= interp_term_fixed x eta (adv eta a) a0)
+        with
+          (true)
+        by
+          (symmetry; eapply eqb_refl).
+      eapply reflexivity.
+      eapply reflexivity.
+      eapply reflexivity.
+
+      eapply Proper_negligible. intro eta.
+      eapply ratDistance_eqRat_mor_Proper.
+      eapply (@Proper_evalDist).
+      eapply (@Proper_Bind); [reflexivity|intro].
+      eapply (@Proper_Bind).
+      rewrite Bind_unused.
+      eapply reflexivity.
+      eapply reflexivity.
+      eapply reflexivity.
+
+      eapply Proper_negligible. intro eta.
+      eapply ratDistance_eqRat_mor_Proper.
+      eapply (@Proper_evalDist).
+      eapply reflexivity.
+      eapply (@Proper_Bind); [reflexivity|intro].
+      eapply (@Proper_Bind).
+      rewrite Bind_unused.
+      eapply reflexivity.
+      eapply reflexivity.
+
+      eapply (@eq_impl_negligible _ _ _ (reflexivity _)).
     Qed.
   End Equality.
 
@@ -1218,10 +1255,7 @@ Qed.
 
     (* Theorem symbolic_OTP : forall (n : positive) (x : forall (eta : nat), T' eta), indist (const RndT'_symbolic @ (rnd n)) (const T_op' @ const x @ (const RndT'_symbolic @ (rnd n)))%term. *)
 
-    Global Instance Proper_Bind' {A B} : Proper (Comp_eq ==> pointwise_relation _ Comp_eq ==> Comp_eq) (@Bind A B).
-    Admitted.
-
-    Global Instance Proper_interp_term_late {t} (x : term t) eta : (Proper (eq ==> PositiveMap.Equal ==> Comp_eq) (interp_term_late x eta)).
+    Global Instance Proper_interp_term_late {t} (x : term t) eta : (Proper (pointwise_relation _ PositiveMap.Equal ==> Comp_eq) (interp_term_late x eta)).
     Admitted.
 
     Global Instance Proper_map eta: Proper (pointwise_relation (PositiveMap.t (interp_base_type rand eta)) (comp_spec (@eq (T' eta))) ==> Comp_eq) (Bind (ret PositiveMap.empty (interp_type rand eta))).
