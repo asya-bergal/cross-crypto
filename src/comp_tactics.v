@@ -23,25 +23,60 @@ Lemma swap_test : Comp_eq (x <-$ {0,1}; y <-$ {0,1}; ret x && y) (y <-$ {0,1}; x
 Qed.
 
 (* General lemma that helps do what I want *)
+Ltac brewrite' lemma :=
+  first [ etransitivity; [ rewrite lemma; reflexivity |
+                           subst; lazymatch goal with |- ?R ?LHS (?e ?x) =>
+                                                      let LHS' := eval pattern x in LHS in
+                                                          lazymatch LHS' with ?f x =>
+                                                                              instantiate (1:=f)
+                                                          end
+                                  end; reflexivity ]
+        | etransitivity; [ eapply Proper_Bind; [ reflexivity | do 3 intro; brewrite' lemma] | ] ].
+
 Ltac brewrite lemma :=
-  first [ rewrite lemma; reflexivity | etransitivity; [ eapply Proper_Bind; [ reflexivity | do 3 intro; brewrite lemma] | ] ].
+  first [ etransitivity; [ rewrite lemma; reflexivity | ] | brewrite' lemma ].
   
 (* Ltac cswap subexpr := *)
 (*   match goal with *)
 (*     | [ |- Comp_eq ( context[_ <-$ ?c1; _ <-$ ?c2;  *)
 Lemma harder_swap_test : Comp_eq (z <-$ {0,1}; x <-$ {0,1}; y <-$ {0,1}; ret x && y) (y <-$ {0,1}; z <-$ {0,1}; x <-$ {0,1}; ret x && y).
 
-  (* eapply Proper_Bind. *)
-  (* reflexivity. *)
-  (* do 3 intro. *)
-  (* rewrite (Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ (fun (x : bool) (y : bool) => ret x && y)). *)
-  (* apply Comp_eq_symmetry. *)
-  (* etransitivity. *)
-  (* (* Set Printing All. *) *)
-  (* (* Show. *) *)
-  (* rewrite (Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ (fun (_ : bool) (x0 : bool) => ret x0 && y)). *)
+  (* brewrite (fun (y : bool) => Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ (fun (_ : bool) (x0 : bool) => ret x0 && y)). *)
 
   apply Comp_eq_symmetry.
+
+  brewrite (fun (f : bool -> bool -> Comp bool) => Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ f).
+  brewrite (Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ (fun (a : bool) (x : bool) => ret x && a)).
+  reflexivity.
+  (* brewrite (fun (y : bool) => Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ (fun (_ : bool) (x0 : bool) => ret x0 && y)). *)
+
+  About Comp_eq_swap.
+  etransitivity.
+  rewrite (fun (f : bool -> bool -> Comp bool) => Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ f).
+  reflexivity.
+
+  brewrite (fun (f : bool -> bool -> Comp bool) => Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ f).
+
+  brewrite (fun (f : bool -> bool -> Comp bool) => Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ f).
+  brewrite (Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ _).
+  brewrite (fun (f : bool -> bool -> Comp bool) => Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ f).
+  etransitivity.
+  eapply Proper_Bind.
+  reflexivity.
+  do 3 intro.
+
+  etransitivity ;
+  [ rewrite (fun (y : bool) => Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ (fun (_ : bool) (x0 : bool) => ret x0 && y)); reflexivity |
+  subst;
+  lazymatch goal with |- ?R ?LHS (?e ?x) =>
+                      let LHS' := eval pattern x in LHS in
+                          lazymatch LHS' with ?f x =>
+                                              instantiate (1:=f)
+                          end
+          end; reflexivity ].
+
+  (* brewrite (fun (y : bool) => Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ (fun (_ : bool) (x0 : bool) => ret x0 && y)). *)
+  (* etransitivity; rewrite (Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ (fun (_ : bool) (x0 : bool) => ret x0 && _)); reflexivity. *)
   (* rewrite (Comp_eq_swap _ _ (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) (m <-$ { 0 , 1 }^ 1; ret Vector.hd m) _ (fun (_ : bool) (x : bool) => ret x && y)). *)
   etransitivity.
   eapply Proper_Bind.
