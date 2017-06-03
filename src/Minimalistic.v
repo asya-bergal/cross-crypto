@@ -351,7 +351,7 @@ Section Language.
       cbn [interp_term_fixed const_eqb].
       Local Opaque negligible.
       Local Opaque eqRat.
-      Set Typeclasses Debug.
+      (* Set Typeclasses Debug. *)
       pose proof Proper_negligible.
       Fail timeout 1 setoid_rewrite (eqb_refl _ (interp_term_fixed _ _ (adv _ _) _)).
       eapply Proper_negligible. intro eta.
@@ -586,18 +586,17 @@ End FillInterp.
   Lemma Comp_eq_split_map : forall (t u : type) (ctx : term_wh t u) (x : term t) (eta : nat) (s1 : PositiveSet.t)
                               (adv : forall eta : nat, PositiveMap.t (interp_type rand eta) -> interp_type list_message eta -> interp_type message eta)
                               (dst : forall (t : type) (eta : nat), PositiveMap.t (interp_type rand eta) -> interp_type t eta -> bool)
-      (H : PositiveSet.Equal (PositiveSet.inter s1 (randomness_indices_wh ctx)) PositiveSet.empty),
+                              (H : PositiveSet.Equal (PositiveSet.inter s1 (randomness_indices_wh ctx)) PositiveSet.empty)
+    T (C:_->Comp T),
       (* TODO : Disjointness of s1, randomness_indices, ctx randomness and x1 randomness *)
 
       Comp_eq (rands <-$ generate_randomness eta (PositiveSet.union s1 (randomness_indices_wh ctx));
                  x1 <-$ interp_term x eta (adv eta (pmap_diff rands (randomness_indices_wh ctx)));
-                 res <-$ ret interp_term_fill_fixed ctx x1 (adv eta (pmap_diff rands (randomness_indices_wh ctx))) rands;
-                 ret dst u eta (pmap_diff rands (randomness_indices_wh ctx)) res)
+                 C (dst u eta (pmap_diff rands (randomness_indices_wh ctx)) (interp_term_fill_fixed ctx x1 (adv eta (pmap_diff rands (randomness_indices_wh ctx))) rands)))
               (evil_rands <-$ generate_randomness eta s1;
                  rands <-$ generate_randomness eta (randomness_indices_wh ctx);
                  x1 <-$ interp_term x eta (adv eta (pmap_diff evil_rands (randomness_indices_wh ctx)));
-                 res <-$ ret interp_term_fill_fixed ctx x1 (adv eta (pmap_diff evil_rands (randomness_indices_wh ctx))) rands;
-                 ret dst u eta (pmap_diff evil_rands (randomness_indices_wh ctx)) res).
+                 C (dst u eta (pmap_diff evil_rands (randomness_indices_wh ctx)) (interp_term_fill_fixed ctx x1 (adv eta (pmap_diff evil_rands (randomness_indices_wh ctx))) rands))).
     (* intros. *)
     (* pose proof (generate_randomness_map s1 (randomness_indices_wh ctx) eta). *)
     Admitted.
@@ -867,51 +866,13 @@ End FillInterp.
         (fun (t : type) (eta : nat) (p : PositiveMap.t (interp_type rand eta)) => dst t eta (defaulted_option (shift_down_map_indices p) (PositiveSet.max_elt (randomness_indices_wh ctx)) p)) (inter_with_max_empty (adl eta) (randomness_indices_wh ctx))).
     clear E negeq.
 
-    (* Now using Hfill to replace the interp_term_fill_fixed with interp-term. *)
-    compeqify
-         (fun eta : nat =>
-          evil_rands <-$
-              generate_randomness eta (defaulted_option (shift_up_set_indices (adl eta))
-                      (PositiveSet.max_elt (randomness_indices_wh ctx)) (adl eta));
-
-              res <-$ interp_term (fill ctx y) eta
-                 (adv eta
-                    (defaulted_option
-                       (shift_down_map_indices (pmap_diff evil_rands (randomness_indices_wh ctx)))
-                       (PositiveSet.max_elt (randomness_indices_wh ctx))
-                       (pmap_diff evil_rands (randomness_indices_wh ctx))));
-              ret dst u eta
-                (defaulted_option (shift_down_map_indices (pmap_diff evil_rands (randomness_indices_wh ctx)))
-                    (PositiveSet.max_elt (randomness_indices_wh ctx)) (pmap_diff evil_rands (randomness_indices_wh ctx))) res )
-         (fun eta : nat =>
-          evil_rands <-$
-              generate_randomness eta (defaulted_option (shift_up_set_indices (adl eta))
-                      (PositiveSet.max_elt (randomness_indices_wh ctx)) (adl eta));
-              res <-$ interp_term (fill ctx x) eta
-                 (adv eta
-                    (defaulted_option
-                       (shift_down_map_indices (pmap_diff evil_rands (randomness_indices_wh ctx)))
-                       (PositiveSet.max_elt (randomness_indices_wh ctx))
-                       (pmap_diff evil_rands (randomness_indices_wh ctx))));
-              ret dst u eta
-                (defaulted_option (shift_down_map_indices (pmap_diff evil_rands (randomness_indices_wh ctx)))
-                    (PositiveSet.max_elt (randomness_indices_wh ctx)) (pmap_diff evil_rands (randomness_indices_wh ctx))) res ).
-
-    Focus 2. {
-      let adv' := (eval cbv delta [adv'] in adv') in
-      repeat match goal with
-             | |- ?R ?x ?x => reflexivity
-             | H:_|-_ => setoid_rewrite <-(@interp_term_fill_correct t u ctx _ eta (adv' eta _) H)
-             | _ => setoid_rewrite <-Bind_assoc
-             | _ => setoid_rewrite Bind_Ret_l
-             end.
-      repeat f_equiv; setoid_rewrite Bind_comm at 2; reflexivity.
-    } Unfocus.
-
-    clear negeq0 E.
-
-    eapply (Transitive2_negligible_ratDistance negeq); clear negeq;
+    eapply (Transitive2_negligible_ratDistance negeq0); clear negeq0;
       eapply eq_impl_negligible; intro eta;
+
+    (etransitivity; [| (* <-interp_term_fill_correct *)
+      (eapply Proper_Bind; [reflexivity|intro]);
+      (setoid_rewrite <-interp_term_fill_correct; [|assumption]);
+      eapply (reflexivity _)]);
 
     repeat match goal with
              |- context [ r <-$ ?R ; @?C r ] => (* shift_pmap *)
@@ -932,6 +893,9 @@ End FillInterp.
                      progress (destruct (PositiveSet.max_elt (randomness_indices_wh ctx)) as [m|])
            | _ => setoid_rewrite <-(@Comp_eq_shift_up_shift_down (adl _) m)
            | _ => reflexivity
+           | _ => repeat f_equiv; setoid_rewrite Bind_comm at 1; reflexivity
+           | _ => repeat f_equiv; setoid_rewrite Bind_comm at 2; reflexivity
+           | _ => repeat f_equiv; setoid_rewrite Bind_comm at 3; reflexivity
            end.
 Qed.
     (* OTP *)
