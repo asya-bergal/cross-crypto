@@ -774,20 +774,17 @@ End FillInterp.
                                (PositiveSet.max_elt (randomness_indices_wh ctx))
                                (pmap_diff m (randomness_indices_wh ctx)))) in
     eapply (Transitive2_negligible_ratDistance (indistxy adl' adv' (fun (t : type) (eta : nat) (evil_rands: PositiveMap.t (interp_type rand eta)) (filler : interp_type t eta) => (dst' _ _ _) adl' dst eta (adv' eta evil_rands) evil_rands (defaulted_option (shift_down_map_indices (pmap_diff evil_rands (randomness_indices_wh ctx))) (PositiveSet.max_elt (randomness_indices_wh ctx)) (pmap_diff evil_rands (randomness_indices_wh ctx))) ctx filler))); clear indistxy;
-      eapply eq_impl_negligible; intro eta.
 
-    Print Assumptions UIP_refl.
-    all:
-      destruct (eqdec_type t t); [|contradiction].
-    setoid_rewrite <-Eq_rect_eq.eq_rect_eq.
-    cbv [eq_rect]; rewrite (UIP_refl type t e).
-    
+    eapply eq_impl_negligible; intro eta;
+
+    (destruct (eqdec_type t t); [|contradiction]; cbv [eq_rect]; rewrite (UIP_refl type t e));
+        
     setoid_rewrite (Comp_eq_split_map t u ctx _ _ _
         (fun (eta : nat) (p : PositiveMap.t (interp_type rand eta)) => adv eta (defaulted_option (shift_down_map_indices p) _ p))
         (fun (t : type) (eta : nat) (p : PositiveMap.t (interp_type rand eta)) => dst t eta (defaulted_option (shift_down_map_indices p) _ p)) (inter_with_max_empty (adl _) (randomness_indices_wh ctx)));
 
 
-    (etransitivity; [| (* <-interp_term_fill_correct *)
+    (etransitivity; [| (* TODO: setoid_rewrite <-interp_term_fill_correct *)
       (eapply Proper_Bind; [reflexivity|intro]);
       (setoid_rewrite <-interp_term_fill_correct; [|assumption]);
       eapply (reflexivity _)]);
@@ -814,7 +811,8 @@ End FillInterp.
            | _ => repeat f_equiv; setoid_rewrite Bind_comm at 1; reflexivity
            | _ => repeat f_equiv; setoid_rewrite Bind_comm at 2; reflexivity
            | _ => repeat f_equiv; setoid_rewrite Bind_comm at 3; reflexivity
-           end.
+           end
+    .
 Qed.
     (* OTP *)
     (* "Nonuniform cracks in the concrete" (appendix) *)
