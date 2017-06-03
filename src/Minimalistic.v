@@ -234,18 +234,18 @@ Section Language.
     }
     { admit. }
     {
-      cbv [Proper respectful Distribution_eq pointwise_relation RelCompFun].
+      cbv [Proper respectful pointwise_relation RelCompFun].
       intros.
       rewrite H.
       assert (Comp_eq x0 y0).
       apply Comp_eq_evalDist.
-      assumption.
+      intros.
       setoid_rewrite H0.
       reflexivity.
     }
     {
-      cbv [transpose Distribution_eq pointwise_relation RelCompFun].
-      intros.
+      cbv [transpose pointwise_relation RelCompFun].
+      intros. (*
       (* TODO: Make these all tactics you can perform on Comp_eqs + ask andres about this *)
       apply Comp_eq_evalDist.
       intros.
@@ -277,7 +277,7 @@ Section Language.
       (*   } *)
         (* TODO: Do this rewrite under a bind. *)
       }
-    { cbv [not]; apply (PositiveSetProperties.Dec.F.empty_iff n). }
+    { cbv [not]; apply (PositiveSetProperties.Dec.F.empty_iff n). } *)
   Admitted.
 
   Context (unreachable:forall {i}, Bvector (len_rand i)).
@@ -333,6 +333,9 @@ Section Language.
 
   Definition whp (e:term sbool) := indist e (const strue).
 
+  Local Existing Instance eq_subrelation | 5.
+  (* Local Instance subrelation_eq_Comp_eq {A} : subrelation eq (Comp_eq(A:=A)) | 2 := eq_subrelation _. *)
+
   Section Equality.
     Definition const_eqb t : term (t -> t -> sbool) :=
       @Term_const
@@ -346,47 +349,15 @@ Section Language.
     Proof.
       cbv [Reflexive indist universal_security_game eqwhp whp interp_term]; intros.
       cbn [interp_term_fixed const_eqb].
-
-      eapply Proper_negligible. intro eta.
-      eapply ratDistance_eqRat_mor_Proper.
-      eapply (@Proper_evalDist).
-      eapply (@Proper_Bind); [reflexivity|intro].
-      eapply (@Proper_Bind).
-      Set Typeclasses Debug. Set Printing Implicit.
-      timeout 10 setoid_rewrite eqb_refl.
-      eapply (@Proper_Bind); [reflexivity|intro].
-
-      replace
-             (interp_term_fixed x eta (adv eta a) a0
-                               ?= interp_term_fixed x eta (adv eta a) a0)
-        with
-          (true)
-        by
-          (symmetry; eapply eqb_refl).
-      eapply reflexivity.
-      eapply reflexivity.
-      eapply reflexivity.
-
-      eapply Proper_negligible. intro eta.
-      eapply ratDistance_eqRat_mor_Proper.
-      eapply (@Proper_evalDist).
-      eapply (@Proper_Bind); [reflexivity|intro].
-      eapply (@Proper_Bind).
-      rewrite Bind_unused.
-      eapply reflexivity.
-      eapply reflexivity.
-      eapply reflexivity.
-
-      eapply Proper_negligible. intro eta.
-      eapply ratDistance_eqRat_mor_Proper.
-      eapply (@Proper_evalDist).
-      eapply reflexivity.
-      eapply (@Proper_Bind); [reflexivity|intro].
-      eapply (@Proper_Bind).
-      rewrite Bind_unused.
-      eapply reflexivity.
-      eapply reflexivity.
-
+      Local Opaque negligible.
+      Local Opaque eqRat.
+      Set Typeclasses Debug.
+      pose proof Proper_negligible.
+      Fail timeout 1 setoid_rewrite (eqb_refl _ (interp_term_fixed _ _ (adv _ _) _)).
+      eapply Proper_negligible. intro eta.h
+      timeout 1 setoid_rewrite (eqb_refl _ (interp_term_fixed _ _ (adv _ _) _)).
+      timeout 1 setoid_rewrite Bind_unused.
+      eapply (reflexivity _).
       eapply (@eq_impl_negligible _ _ _ (reflexivity _)).
     Qed.
   End Equality.

@@ -31,8 +31,8 @@ Proof. destruct Equivalence_R; split; cbv; eauto. Qed.
 Definition Comp_eq {A} := image_relation (pointwise_relation _ eqRat) (@evalDist A).
 Global Instance Equivalence_Comp_eq {A} : Equivalence (@Comp_eq A) := _.
 
-Global Instance Proper_evalDist {A} : Proper (Comp_eq ==> pointwise_relation _ eqRat) (@evalDist A).
-Proof. exact (fun _ _ => id). Qed.
+Global Instance Proper_evalDist {A} : Proper (Comp_eq ==> Logic.eq ==> eqRat) (@evalDist A).
+Proof. intros ?? H ?? ?; subst; apply H. Qed.
 
 Global Instance Proper_getSupport {A} : Proper (Comp_eq ==> (@Permutation.Permutation _)) (@getSupport A).
 Proof. intros ???; eapply evalDist_getSupport_perm_id; assumption. Qed.
@@ -72,8 +72,8 @@ Proof.
   eassumption.
   intros ?.
   f_equiv.
-  { eapply Proper_evalDist. assumption. }
-  { eapply Proper_evalDist. eapply G. }
+  { eapply Proper_evalDist. assumption. reflexivity. }
+  { eapply Proper_evalDist. eapply G. reflexivity. }
 Qed.
 
 Lemma eq_impl_negligible : forall A (x y : nat -> Comp A), pointwise_relation _ Comp_eq x y -> forall t, negligible (fun eta : nat => | evalDist (x eta) t - evalDist (y eta) t|).
@@ -165,5 +165,4 @@ Qed.
 Lemma Comp_eq_symmetry : forall (A : Set) (c1 c2: Comp A), Comp_eq c1 c2 <-> Comp_eq c2 c1.
   Proof.
     intros; split; intro; apply Comp_eq_evalDist; rewrite <- Comp_eq_evalDist in H; intros; apply eqRat_symm; auto.
-  Qed.
-
+Qed.
