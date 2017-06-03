@@ -717,22 +717,37 @@ End FillInterp.
        end.
 
   Global Instance Reflexive_negligible_ratDistance :
-    Reflexive (fun f g => negligible (fun n => | f n - g n |)).
+    Reflexive (fun f g => negligible (fun eta => | f eta - g eta |)).
   Proof.
     intros ?; setoid_rewrite ratDistance_same; eapply negligible_0.
   Qed.
 
   Global Instance Symmetric_negligible_ratDistance :
-    Symmetric (fun f g => negligible (fun n => | f n - g n |)).
+    Symmetric (fun f g => negligible (fun eta => | f eta - g eta |)).
   Proof.
     intros ???; setoid_rewrite ratDistance_comm; assumption.
   Qed.
 
   Global Instance Transitive_negligible_ratDistance :
-    Transitive (fun f g => negligible (fun n => | f n - g n |)).
+    Transitive (fun f g => negligible (fun eta => | f eta - g eta |)).
   Proof.
     intros ?????; setoid_rewrite ratTriangleInequality; eauto using negligible_plus.
   Qed.
+
+  Lemma Transitive2_negligible_ratDistance {f1 g1 f2 g2} :
+    negligible (fun eta => | f1 eta - g1 eta |) -> 
+    negligible (fun eta => | f1 eta - f2 eta |) -> 
+    negligible (fun eta => | g1 eta - g2 eta |) -> 
+    negligible (fun eta => | f2 eta - g2 eta |).
+  Proof.
+    intros f1g1 f1f2 g1g2.
+    eapply Transitive_negligible_ratDistance.
+    eapply Transitive_negligible_ratDistance.
+    2:exact f1g1.
+    eapply Symmetric_negligible_ratDistance; assumption.
+    assumption.
+  Qed.
+
 
   Local Opaque interp_term.
   Lemma indist_no_shared_randomness: forall {t u} (x: term t) (y: term t) (z: term u) (ctx: term_wh t u),
@@ -895,64 +910,29 @@ End FillInterp.
 
     clear negeq0 E.
 
-    (* Now removing the pmap_diffs using Comp_eq_shift_pmap_diff *)
-    compeqify
-         (fun eta : nat =>
-          evil_rands <-$
-              generate_randomness eta (defaulted_option (shift_up_set_indices (adl eta))
-                      (PositiveSet.max_elt (randomness_indices_wh ctx)) (adl eta));
+    eapply (Transitive2_negligible_ratDistance negeq); clear negeq;
+      eapply eq_impl_negligible; intro eta;
 
-              res <-$ interp_term (fill ctx y) eta
-                 (adv eta
-                    (defaulted_option
-                       (shift_down_map_indices evil_rands)
-                       (PositiveSet.max_elt (randomness_indices_wh ctx)) evil_rands));
-              ret dst u eta
-                (defaulted_option (shift_down_map_indices evil_rands)
-                    (PositiveSet.max_elt (randomness_indices_wh ctx)) evil_rands) res )
-         (fun eta : nat =>
-          evil_rands <-$
-              generate_randomness eta (defaulted_option (shift_up_set_indices (adl eta))
-                      (PositiveSet.max_elt (randomness_indices_wh ctx)) (adl eta));
-              res <-$ interp_term (fill ctx x) eta
-                 (adv eta
-                    (defaulted_option
-                       (shift_down_map_indices evil_rands)
-                       (PositiveSet.max_elt (randomness_indices_wh ctx)) evil_rands));
-              ret dst u eta
-                (defaulted_option (shift_down_map_indices evil_rands)
-                    (PositiveSet.max_elt (randomness_indices_wh ctx)) evil_rands) res ).
-
-    Focus 2. {
-      repeat match goal with
-               |- context [ Pr [r <-$ ?R ; @?C r] ] => (* shift_pmap *)
-               let T := match type of R with Comp ?T => T end in
-               let Ct := constr:(
-                           (fun (r:T) =>
-                              ltac:(
-                                let Cr := (eval cbv beta in (C r)) in
-                                let Cp := (eval pattern (pmap_diff r (randomness_indices_wh ctx)) in Cr) in
-                                let C' := match Cp with ?C _ => C end in
-                                let Ct := (eval cbv beta in (C' r)) in
-                                exact Ct
-                         ))) in
-               setoid_rewrite (@Comp_eq_shift_pmap_diff (adl eta) (randomness_indices_wh ctx) eta _ Ct)
-             | _ => setoid_rewrite <-Bind_assoc
-             | _ => setoid_rewrite Bind_Ret_l
-             | _ => reflexivity
-             end.
-    } Unfocus.
-    clear E negeq.
-
-    eapply Transitive_negligible_ratDistance; [eapply Transitive_negligible_ratDistance; [|eapply negeq0]|];
-    cbv [defaulted_option];
-    destruct (PositiveSet.max_elt (randomness_indices_wh ctx)) as [m|];
-      repeat match goal with
-               | _ => setoid_rewrite <-Bind_assoc
-               | _ => setoid_rewrite Bind_Ret_l
-               | _ => setoid_rewrite <-(@Comp_eq_shift_up_shift_down (adl _) m)
-               | _ => eapply Reflexive_negligible_ratDistance
-             end.
+    repeat match goal with
+             |- context [ r <-$ ?R ; @?C r ] => (* shift_pmap *)
+             let T := match type of R with Comp ?T => T end in
+             let Ct := constr:(
+                         (fun (r:T) =>
+                            ltac:(
+                              let Cr := (eval cbv beta in (C r)) in
+                              let Cp := (eval pattern (pmap_diff r (randomness_indices_wh ctx)) in Cr) in
+                              let C' := match Cp with ?C _ => C end in
+                              let Ct := (eval cbv beta in (C' r)) in
+                              exact Ct
+                       ))) in
+             setoid_rewrite (@Comp_eq_shift_pmap_diff (adl eta) (randomness_indices_wh ctx) eta _ Ct)
+           | _ => setoid_rewrite <-Bind_assoc
+           | _ => setoid_rewrite Bind_Ret_l
+           | _  => progress (cbv [defaulted_option]);
+                     progress (destruct (PositiveSet.max_elt (randomness_indices_wh ctx)) as [m|])
+           | _ => setoid_rewrite <-(@Comp_eq_shift_up_shift_down (adl _) m)
+           | _ => reflexivity
+           end.
 Qed.
     (* OTP *)
     (* "Nonuniform cracks in the concrete" (appendix) *)
