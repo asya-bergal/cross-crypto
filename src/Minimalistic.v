@@ -354,7 +354,7 @@ Section Language.
       Set Typeclasses Debug.
       pose proof Proper_negligible.
       Fail timeout 1 setoid_rewrite (eqb_refl _ (interp_term_fixed _ _ (adv _ _) _)).
-      eapply Proper_negligible. intro eta.h
+      eapply Proper_negligible. intro eta.
       timeout 1 setoid_rewrite (eqb_refl _ (interp_term_fixed _ _ (adv _ _) _)).
       timeout 1 setoid_rewrite Bind_unused.
       eapply (reflexivity _).
@@ -719,16 +719,11 @@ End FillInterp.
   Lemma indist_no_shared_randomness: forall {t u} (x: term t) (y: term t) (z: term u) (ctx: term_wh t u),
       PositiveSet.Equal (PositiveSet.inter (randomness_indices_wh ctx) (randomness_indices x)) PositiveSet.empty ->
       PositiveSet.Equal (PositiveSet.inter (randomness_indices_wh ctx) (randomness_indices y)) PositiveSet.empty ->
-      indist (fill ctx x) z ->
       indist y x ->
-      indist (fill ctx y) z.
+      indist (fill ctx y) (fill ctx x).
   Proof.
-    intros t u x y z ctx eqx eqy indistxz indistxy.
-
-    transitivity (fill ctx x).
-    cbv [indist universal_security_game].
-    intros.
-    cbv [indist universal_security_game] in indistxy.
+    cbv [indist universal_security_game] in *;
+      intros t u x y z ctx eqx eqy indistxy adl adv dst.
 
     pose (adl' := fun (eta : nat) =>
                     PositiveSet.union
@@ -746,8 +741,9 @@ End FillInterp.
                                                                                                                                                   (defaulted_option (shift_down_map_indices (pmap_diff evil_rands (randomness_indices_wh ctx))) (PositiveSet.max_elt (randomness_indices_wh ctx)) (pmap_diff evil_rands (randomness_indices_wh ctx))) ctx filler)).
     cbv [dst' adl' adv'] in indistxy.
 
+    destruct (eqdec_type t t) in indistxy; [|contradiction].
+
     Require Import Coq.Logic.Eqdep.
-    destruct (eqdec_type t t) in indistxy.
     cbv [eq_rec_r eq_rec eq_rect] in indistxy.
     rewrite (UIP_refl type t e) in indistxy.
     cbv [eq_sym] in indistxy.
@@ -785,8 +781,78 @@ End FillInterp.
                 (defaulted_option (shift_down_map_indices (pmap_diff evil_rands (randomness_indices_wh ctx)))
                     (PositiveSet.max_elt (randomness_indices_wh ctx)) (pmap_diff evil_rands (randomness_indices_wh ctx))) res ).
 
-    Focus 2.
-    apply ratDistance_eqRat_compat; fcf_at fcf_ret fcf_right 2%nat; apply eqRat_refl.
+    Focus 2. {
+      apply ratDistance_eqRat_compat.
+
+      assert (Comp_eq 
+     (evil_rands <-$
+         generate_randomness eta
+           (PositiveSet.union
+              (defaulted_option (shift_up_set_indices (adl eta))
+                 (PositiveSet.max_elt (randomness_indices_wh ctx)) (adl eta))
+              (randomness_indices_wh ctx));
+         out <-$
+         interp_term y eta
+           (adv eta
+              (defaulted_option
+                 (shift_down_map_indices
+                    (pmap_diff evil_rands (randomness_indices_wh ctx)))
+                 (PositiveSet.max_elt (randomness_indices_wh ctx))
+                 (pmap_diff evil_rands (randomness_indices_wh ctx))));
+         ret dst u eta
+               (defaulted_option
+                  (shift_down_map_indices
+                     (pmap_diff evil_rands (randomness_indices_wh ctx)))
+                  (PositiveSet.max_elt (randomness_indices_wh ctx))
+                  (pmap_diff evil_rands (randomness_indices_wh ctx)))
+               (interp_term_fill_fixed ctx out
+                  (adv eta
+                     (defaulted_option
+                        (shift_down_map_indices
+                           (pmap_diff evil_rands (randomness_indices_wh ctx)))
+                        (PositiveSet.max_elt (randomness_indices_wh ctx))
+                        (pmap_diff evil_rands (randomness_indices_wh ctx))))
+                  evil_rands) )
+     (evil_rands <-$
+         generate_randomness eta
+           (PositiveSet.union
+              (defaulted_option (shift_up_set_indices (adl eta))
+                 (PositiveSet.max_elt (randomness_indices_wh ctx)) (adl eta))
+              (randomness_indices_wh ctx));
+         out <-$
+         interp_term y eta
+           (adv eta
+              (defaulted_option
+                 (shift_down_map_indices
+                    (pmap_diff evil_rands (randomness_indices_wh ctx)))
+                 (PositiveSet.max_elt (randomness_indices_wh ctx))
+                 (pmap_diff evil_rands (randomness_indices_wh ctx))));
+         res <-$
+         ret interp_term_fill_fixed ctx out
+               (adv eta
+                  (defaulted_option
+                     (shift_down_map_indices
+                        (pmap_diff evil_rands (randomness_indices_wh ctx)))
+                     (PositiveSet.max_elt (randomness_indices_wh ctx))
+                     (pmap_diff evil_rands (randomness_indices_wh ctx))))
+               evil_rands;
+         ret dst u eta
+               (defaulted_option
+                  (shift_down_map_indices
+                     (pmap_diff evil_rands (randomness_indices_wh ctx)))
+                  (PositiveSet.max_elt (randomness_indices_wh ctx))
+                  (pmap_diff evil_rands (randomness_indices_wh ctx))) res )). {
+      Set Typeclasses Debug.
+      eapply Proper_Bind; [reflexivity|intro].
+      Fail setoid_rewrite @Comp_eq_left_ident.
+      eapply Proper_Bind; [reflexivity|intro].
+      setoid_rewrite @Comp_eq_left_ident.
+      reflexivity. exact _.
+     }
+
+      - fcf_at fcf_ret fcf_right 2%nat. apply eqRat_refl.
+      - fcf_at fcf_ret fcf_right 2%nat. apply eqRat_refl.
+    } Unfocus.
     clear indistxy E.
 
     (* Rewriting inside using split_eq *)
@@ -883,7 +949,7 @@ End FillInterp.
     clear Hfill Hfillx Hfilly.
     cbv [adv'] in Hfillx'; cbv [adv'] in Hfilly'; apply ratDistance_eqRat_compat; apply Comp_eq_evalDist; eapply Proper_Bind.
     reflexivity.
-    cbv [respectful]; intros; subst; specialize (Hfilly' y0).
+    cbv [pointwise_relation]; intros y0. specialize (Hfilly' y0).
     etransitivity.
     etransitivity.
     instantiate (1 := (res <-$
@@ -923,8 +989,7 @@ End FillInterp.
     reflexivity.
     reflexivity.
 
-    cbv [respectful]; intros; subst.
-    specialize (Hfillx' y0).
+    cbv [pointwise_relation]; intros y0. specialize (Hfillx' y0).
     etransitivity.
     etransitivity.
     instantiate (1 := (res <-$
@@ -1186,8 +1251,6 @@ End FillInterp.
 
     fcf_at fcf_ret fcf_left 1%nat.
     reflexivity.
-    contradiction.
-    assumption.
 Qed.
     (* OTP *)
     (* "Nonuniform cracks in the concrete" (appendix) *)
