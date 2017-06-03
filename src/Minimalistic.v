@@ -1244,9 +1244,17 @@ End FillInterp.
 
     cbv beta in negeq.
     assumption.
-    apply ratDistance_eqRat_compat;
-    fcf_at fcf_inline fcf_left 0%nat.
-    fcf_at fcf_ret fcf_left 1%nat.
+
+    Local Opaque interp_term.
+    Local Notation Bind_assoc := Comp_eq_associativity.
+    Local Notation Bind_Ret_l := Comp_eq_left_ident.
+    Local Notation Bind_Ret_r := Comp_eq_right_ident.
+    setoid_rewrite <-Bind_assoc; try exact _.
+    apply ratDistance_eqRat_compat.
+    eapply Proper_evalDist; [|reflexivity].
+    Fail setoid_rewrite Bind_Ret_l.
+    eapply Proper_Bind; [reflexivity|intro].
+    setoid_rewrite Bind_Ret_l; try exact _.
     reflexivity.
 
     fcf_at fcf_ret fcf_left 1%nat.
@@ -1262,6 +1270,17 @@ Qed.
     (* Hash functions *)
     (* Some assymetric-key primitive *)
     (* Diffie Hellman key exchange, sigma-i, Hugo <something> , curve-CP*)
+
+
+  Lemma indist_rand (x y:positive) : indist (rnd x) (rnd y).
+  Proof.
+    cbv [indist universal_security_game]; intros.
+    setoid_rewrite <-interp_term_late_correct.
+    cbv [interp_term_late].
+    setoid_rewrite PositiveMap.gempty.
+    setoid_rewrite ratDistance_same.
+    trivial using negligible_0.
+  Qed.
 
   Section OTP.
     Definition T' := interp_type message.
@@ -1499,19 +1518,5 @@ Qed.
 
 (* encryption of x under k, encryption of k under k' ~~ randomness, randomness *)
   End OTP.
-
-
-  Lemma indist_rand (x y:positive) : indist (rnd x) (rnd y).
-  Proof.
-    cbv [indist]; intros.
-    apply eq_impl_negligible; cbv [pointwise_relation]; intros eta.
-    cbv [universal_security_game].
-    (* setoid_rewrite <-interp_term_late_correct. WHY does it not work? *)
-    eapply Proper_Bind; [reflexivity|]; intros ? ? ?; subst.
-    setoid_rewrite <-interp_term_late_correct.
-    simpl interp_term_late.
-    rewrite 2PositiveMap.gempty.
-    reflexivity.
-  Qed.
 End Language.
 Arguments type _ : clear implicits.
