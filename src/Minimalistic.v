@@ -228,7 +228,7 @@ Section Language.
     rewrite PositiveSetProperties.fold_add.
     {
       rewrite PositiveSetProperties.fold_empty.
-      rewrite Comp_eq_left_ident.
+      rewrite Bind_Ret_l.
       { reflexivity. }
       { admit. }
     }
@@ -734,8 +734,6 @@ End FillInterp.
 
     pose (adv' := fun (eta : nat) (m : PositiveMap.t (interp_type rand eta)) =>
                     adv eta (defaulted_option (shift_down_map_indices (pmap_diff m (randomness_indices_wh ctx))) (PositiveSet.max_elt (randomness_indices_wh ctx)) (pmap_diff m (randomness_indices_wh ctx)))).
-
-
     specialize (indistxy adl' adv' (fun (t : type) (eta : nat) (evil_rands: PositiveMap.t (interp_type rand eta)) (filler : interp_type t eta) =>
     dst' adl' dst eta (adv' eta evil_rands) evil_rands
                                                                                                                                                   (defaulted_option (shift_down_map_indices (pmap_diff evil_rands (randomness_indices_wh ctx))) (PositiveSet.max_elt (randomness_indices_wh ctx)) (pmap_diff evil_rands (randomness_indices_wh ctx))) ctx filler)).
@@ -782,77 +780,9 @@ End FillInterp.
                     (PositiveSet.max_elt (randomness_indices_wh ctx)) (pmap_diff evil_rands (randomness_indices_wh ctx))) res ).
 
     Focus 2. {
-      apply ratDistance_eqRat_compat.
-
-      assert (Comp_eq 
-     (evil_rands <-$
-         generate_randomness eta
-           (PositiveSet.union
-              (defaulted_option (shift_up_set_indices (adl eta))
-                 (PositiveSet.max_elt (randomness_indices_wh ctx)) (adl eta))
-              (randomness_indices_wh ctx));
-         out <-$
-         interp_term y eta
-           (adv eta
-              (defaulted_option
-                 (shift_down_map_indices
-                    (pmap_diff evil_rands (randomness_indices_wh ctx)))
-                 (PositiveSet.max_elt (randomness_indices_wh ctx))
-                 (pmap_diff evil_rands (randomness_indices_wh ctx))));
-         ret dst u eta
-               (defaulted_option
-                  (shift_down_map_indices
-                     (pmap_diff evil_rands (randomness_indices_wh ctx)))
-                  (PositiveSet.max_elt (randomness_indices_wh ctx))
-                  (pmap_diff evil_rands (randomness_indices_wh ctx)))
-               (interp_term_fill_fixed ctx out
-                  (adv eta
-                     (defaulted_option
-                        (shift_down_map_indices
-                           (pmap_diff evil_rands (randomness_indices_wh ctx)))
-                        (PositiveSet.max_elt (randomness_indices_wh ctx))
-                        (pmap_diff evil_rands (randomness_indices_wh ctx))))
-                  evil_rands) )
-     (evil_rands <-$
-         generate_randomness eta
-           (PositiveSet.union
-              (defaulted_option (shift_up_set_indices (adl eta))
-                 (PositiveSet.max_elt (randomness_indices_wh ctx)) (adl eta))
-              (randomness_indices_wh ctx));
-         out <-$
-         interp_term y eta
-           (adv eta
-              (defaulted_option
-                 (shift_down_map_indices
-                    (pmap_diff evil_rands (randomness_indices_wh ctx)))
-                 (PositiveSet.max_elt (randomness_indices_wh ctx))
-                 (pmap_diff evil_rands (randomness_indices_wh ctx))));
-         res <-$
-         ret interp_term_fill_fixed ctx out
-               (adv eta
-                  (defaulted_option
-                     (shift_down_map_indices
-                        (pmap_diff evil_rands (randomness_indices_wh ctx)))
-                     (PositiveSet.max_elt (randomness_indices_wh ctx))
-                     (pmap_diff evil_rands (randomness_indices_wh ctx))))
-               evil_rands;
-         ret dst u eta
-               (defaulted_option
-                  (shift_down_map_indices
-                     (pmap_diff evil_rands (randomness_indices_wh ctx)))
-                  (PositiveSet.max_elt (randomness_indices_wh ctx))
-                  (pmap_diff evil_rands (randomness_indices_wh ctx))) res )). {
-      Set Typeclasses Debug.
-      eapply Proper_Bind; [reflexivity|intro].
-      Fail setoid_rewrite @Comp_eq_left_ident.
-      eapply Proper_Bind; [reflexivity|intro].
-      setoid_rewrite @Comp_eq_left_ident.
-      reflexivity. exact _.
-     }
-
-      - fcf_at fcf_ret fcf_right 2%nat. apply eqRat_refl.
-      - fcf_at fcf_ret fcf_right 2%nat. apply eqRat_refl.
-    } Unfocus.
+      setoid_rewrite Bind_Ret_l.
+      reflexivity. 
+     } Unfocus.
     clear indistxy E.
 
     (* Rewriting inside using split_eq *)
@@ -1218,7 +1148,6 @@ End FillInterp.
     destruct (PositiveSet.max_elt (randomness_indices_wh ctx));
     apply Comp_eq_evalDist;
     apply Proper_Bind.
-    About Comp_eq_shift_up_shift_down.
     pose proof (Comp_eq_shift_up_shift_down (adl eta) e0 eta) as shifts.
     assumption.
     cbv [respectful]; intros; subst.
@@ -1241,23 +1170,11 @@ End FillInterp.
          out <-$ interp_term (fill ctx y) eta (adv eta evil_rands); ret dst u eta evil_rands out)
      (fun (eta : nat) => evil_rands <-$ generate_randomness eta (adl eta);
          out <-$ interp_term (fill ctx x) eta (adv eta evil_rands); ret dst u eta evil_rands out).
-
-    cbv beta in negeq.
-    assumption.
+    exact negeq.
 
     Local Opaque interp_term.
-    Local Notation Bind_assoc := Comp_eq_associativity.
-    Local Notation Bind_Ret_l := Comp_eq_left_ident.
-    Local Notation Bind_Ret_r := Comp_eq_right_ident.
-    setoid_rewrite <-Bind_assoc; try exact _.
-    apply ratDistance_eqRat_compat.
-    eapply Proper_evalDist; [|reflexivity].
-    Fail setoid_rewrite Bind_Ret_l.
-    eapply Proper_Bind; [reflexivity|intro].
-    setoid_rewrite Bind_Ret_l; try exact _.
-    reflexivity.
-
-    fcf_at fcf_ret fcf_left 1%nat.
+    setoid_rewrite <-Bind_assoc.
+    setoid_rewrite Bind_Ret_l. 
     reflexivity.
 Qed.
     (* OTP *)

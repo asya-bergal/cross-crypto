@@ -64,16 +64,7 @@ Qed.
 Global Instance Proper_Bind {A B} : Proper (Comp_eq ==> (pointwise_relation _ Comp_eq) ==> Comp_eq) (@Bind A B).
 Proof.
   intros ?? H ?? G ?. simpl evalDist.
-
-  (* TODO: find out why setoid rewrite does not do this *)
-  etransitivity; [|reflexivity].
-  eapply Proper_sumList_permutation.
-  eapply Proper_getSupport.
-  eassumption.
-  intros ?.
-  f_equiv.
-  { eapply Proper_evalDist. assumption. reflexivity. }
-  { eapply Proper_evalDist. eapply G. reflexivity. }
+  setoid_rewrite H. setoid_rewrite G. reflexivity.
 Qed.
 
 Lemma eq_impl_negligible : forall A (x y : nat -> Comp A), pointwise_relation _ Comp_eq x y -> forall t, negligible (fun eta : nat => | evalDist (x eta) t - evalDist (y eta) t|).
@@ -126,7 +117,7 @@ Lemma Bind_unused A B (a:Comp A) (b:Comp B) :
   Comp_eq (_ <-$ a; b) b.
 Admitted. (* TODO: does FCF have something like this? *)
 
-Lemma Comp_eq_left_ident (A B: Set) (H: EqDec A) (H': EqDec B) (x: A) (f: A -> Comp B):
+Lemma Bind_Ret_l {A B: Set} {H: EqDec A} (x: A) (f: A -> Comp B):
   Comp_eq (x' <-$ ret x; f x') (f x).
 Proof.
   apply Comp_eq_evalDist.
@@ -134,7 +125,7 @@ Proof.
   apply evalDist_left_ident_eq.
 Qed.
 
-Lemma Comp_eq_right_ident (A : Set) (H: EqDec A) (cA : Comp A) :
+Lemma Bind_Ret_r {A : Set} {H: EqDec A} (cA : Comp A) :
   Comp_eq (x <-$ cA; ret x) cA.
 Proof.
   apply Comp_eq_evalDist.
@@ -142,7 +133,7 @@ Proof.
   apply evalDist_right_ident.
 Qed.
 
-Lemma Comp_eq_associativity (A B C: Set) (H : EqDec A) (cA : Comp A)
+Lemma Bind_assoc {A B C: Set} (cA : Comp A)
       (f : A -> Comp B) (g : B -> Comp C) :
   Comp_eq (x <-$ cA; y <-$ f x; g y) (y <-$ (x <-$ cA; f x); g y).
 Proof.
@@ -153,16 +144,11 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma Comp_eq_swap : forall (A B : Set)(c1 : Comp A)(c2 : Comp B)(C : Set)(c3 : A -> B -> Comp C),
+Lemma Bind_comm : forall (A B : Set)(c1 : Comp A)(c2 : Comp B)(C : Set)(c3 : A -> B -> Comp C),
   Comp_eq (a <-$ c1; b <-$ c2; (c3 a b)) (b <-$ c2; a <-$ c1; (c3 a b)). 
 Proof.
   intros.
   apply Comp_eq_evalDist.
   intros.
   apply evalDist_commute_eq.
-Qed.
-
-Lemma Comp_eq_symmetry : forall (A : Set) (c1 c2: Comp A), Comp_eq c1 c2 <-> Comp_eq c2 c1.
-  Proof.
-    intros; split; intro; apply Comp_eq_evalDist; rewrite <- Comp_eq_evalDist in H; intros; apply eqRat_symm; auto.
 Qed.
