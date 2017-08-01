@@ -230,54 +230,53 @@ Section Language.
       rewrite PositiveSetProperties.fold_empty.
       rewrite Bind_Ret_l.
       { reflexivity. }
-      { admit. }
-    }
-    { admit. }
-    {
-      cbv [Proper respectful pointwise_relation RelCompFun].
-      intros.
-      rewrite H.
-      assert (Comp_eq x0 y0).
-      apply Comp_eq_evalDist.
-      intros.
-      setoid_rewrite H0.
-      reflexivity.
-    }
-    {
-      cbv [transpose pointwise_relation RelCompFun].
-      intros. (*
-      (* TODO: Make these all tactics you can perform on Comp_eqs + ask andres about this *)
-      apply Comp_eq_evalDist.
-      intros.
-      fcf_inline_first.
-      fcf_skip.
-      fcf_inline_first.
-      fcf_at fcf_swap fcf_left 1%nat.
-      fcf_at fcf_swap fcf_right 1%nat.
-      fcf_at fcf_ret fcf_left 2%nat.
-      fcf_at fcf_ret fcf_right 2%nat.
-      apply Comp_eq_evalDist.
-      destruct (Pos.eq_dec x y).
-      { rewrite e; reflexivity. }
-      { admit. }
+    (* } *)
+    (* { admit. } *)
+    (* { *)
+    (*   cbv [Proper respectful pointwise_relation RelCompFun]. *)
+    (*   intros. *)
+    (*   rewrite H. *)
+    (*   assert (Comp_eq x0 y0). *)
+    (*   apply Comp_eq_evalDist. *)
+    (*   intros. *)
+    (*   setoid_rewrite H0. *)
+    (*   reflexivity. *)
+    (* } *)
+    (* { *)
+    (*   cbv [transpose pointwise_relation RelCompFun]. *)
+    (*   intros. (* *)
+    (*   (* TODO: Make these all tactics you can perform on Comp_eqs + ask andres about this *) *)
+    (*   apply Comp_eq_evalDist. *)
+    (*   intros. *)
+    (*   fcf_inline_first. *)
+    (*   fcf_skip. *)
+    (*   fcf_inline_first. *)
+    (*   fcf_at fcf_swap fcf_left 1%nat. *)
+    (*   fcf_at fcf_swap fcf_right 1%nat. *)
+    (*   fcf_at fcf_ret fcf_left 2%nat. *)
+    (*   fcf_at fcf_ret fcf_right 2%nat. *)
+    (*   apply Comp_eq_evalDist. *)
+    (*   destruct (Pos.eq_dec x y). *)
+    (*   { rewrite e; reflexivity. } *)
+    (*   { admit. } *)
 
-      (* { *)
-      (*   remember (PosMap_add_commutes x y n0 (interp_type rand eta) x0) as comm. *)
-      (*   assert (evalDist *)
-      (*     (a0 <-$ { 0 , 1 }^ len_rand eta; *)
-      (*        a1 <-$ { 0 , 1 }^ len_rand eta; *)
-      (*        ret PositiveMap.add y (cast_rand eta a0) (PositiveMap.add x (cast_rand eta a1) x0)) a == *)
-      (*           evalDist *)
-      (*     (a0 <-$ { 0 , 1 }^ len_rand eta; *)
-      (*        a1 <-$ { 0 , 1 }^ len_rand eta; *)
-      (*        ret PositiveMap.add y (cast_rand eta a1) (PositiveMap.add x (cast_rand eta a0) x0)) a). *)
-      (*   { *)
-      (*     fcf_at fcf_swap fcf_right 0%nat. *)
-      (*     reflexivity. *)
-      (*   } *)
-        (* TODO: Do this rewrite under a bind. *)
-      }
-    { cbv [not]; apply (PositiveSetProperties.Dec.F.empty_iff n). } *)
+    (*   (* { *) *)
+    (*   (*   remember (PosMap_add_commutes x y n0 (interp_type rand eta) x0) as comm. *) *)
+    (*   (*   assert (evalDist *) *)
+    (*   (*     (a0 <-$ { 0 , 1 }^ len_rand eta; *) *)
+    (*   (*        a1 <-$ { 0 , 1 }^ len_rand eta; *) *)
+    (*   (*        ret PositiveMap.add y (cast_rand eta a0) (PositiveMap.add x (cast_rand eta a1) x0)) a == *) *)
+    (*   (*           evalDist *) *)
+    (*   (*     (a0 <-$ { 0 , 1 }^ len_rand eta; *) *)
+    (*   (*        a1 <-$ { 0 , 1 }^ len_rand eta; *) *)
+    (*   (*        ret PositiveMap.add y (cast_rand eta a1) (PositiveMap.add x (cast_rand eta a0) x0)) a). *) *)
+    (*   (*   { *) *)
+    (*   (*     fcf_at fcf_swap fcf_right 0%nat. *) *)
+    (*   (*     reflexivity. *) *)
+    (*   (*   } *) *)
+    (*     (* TODO: Do this rewrite under a bind. *) *)
+    (*   } *)
+    (* { cbv [not]; apply (PositiveSetProperties.Dec.F.empty_iff n). } *) *)
   Admitted.
 
   Context (unreachable:forall {i}, Bvector (len_rand i)).
@@ -415,6 +414,8 @@ Section LateInterp.
   End LateInterp.
 
 Section FillInterp.
+  (* TODO: Change this to-- fill with term_const that interprets to the interpreted hole *)
+  (* Only constant under binder that binds the randomness *)
   Fixpoint interp_term_fill_fixed {holetype t eta}
            (twh : term_wh holetype t) (filler : interp_type holetype eta)
            (adv: interp_type list_message eta -> interp_type message eta)
@@ -729,9 +730,23 @@ End FillInterp.
     assumption.
   Qed.
 
+  (* Pattern example *)
+  (* Goal forall (a:nat), False. *)
+  (*   intros. *)
+  (*   let x := eval pattern a in (a + a)%nat in *)
+  (*       pose x. *)
+
 
   Require Import Coq.Logic.Eqdep.
   Local Opaque interp_term.
+  (* TODO: Use this lemma somewhere, fill in lemmas it depends on *)
+  (* Will need to pull out fill manually, *)
+  (* or write an ltac to do it for you (potentially using eval pattern) *)
+  (* Master TODO: *)
+    (* - Lemma admits *)
+    (* - Toy use case of this lemma *)
+    (* - Rewrite OTP proof using setoid_rewrite *)
+    (* - otcpa one day *)
   Lemma indist_no_shared_randomness: forall {t u} (x: term t) (y: term t) (z: term u) (ctx: term_wh t u),
       PositiveSet.Equal (PositiveSet.inter (randomness_indices_wh ctx) (randomness_indices x)) PositiveSet.empty ->
       PositiveSet.Equal (PositiveSet.inter (randomness_indices_wh ctx) (randomness_indices y)) PositiveSet.empty ->
@@ -789,9 +804,15 @@ End FillInterp.
       (setoid_rewrite <-interp_term_fill_correct; [|assumption]);
       eapply (reflexivity _)]);
 
+    (* Context is like pattern, but context allows wildcards inside (?s) *)
+    (* context G [ ], G is the thing around the matched thing, G [ ] to substitute back in *)
+    (* eval cbv beta if on variable, cbv beta on goals or hypotheses *)
     repeat match goal with
              |- context [ r <-$ ?R ; @?C r ] => (* shift_pmap *)
              let T := match type of R with Comp ?T => T end in
+             (* You can't do a lambda in ltac land *)
+             (* Constr gives you an ltac variable with Galina term value *)
+             (* Ltac uses ltac to generate a Galina term *)
              let Ct := constr:(
                          (fun (r:T) =>
                             ltac:(
