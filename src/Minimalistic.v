@@ -90,38 +90,38 @@ Section TODO.
       end; reflexivity.
       *)
 
-Lemma eq_impl_negligible : forall A (x y : nat -> Comp A), pointwise_relation _ Comp_eq x y -> forall t, negligible (fun eta : nat => | evalDist (x eta) t - evalDist (y eta) t|).
-Admitted.
+  Lemma eq_impl_negligible : forall A (x y : nat -> Comp A), pointwise_relation _ Comp_eq x y -> forall t, negligible (fun eta : nat => | evalDist (x eta) t - evalDist (y eta) t|).
+  Admitted.
 
-(* TODO: This should be a two-way lemma *)
-Lemma comp_spec_impl_Comp_eq A (H: EqDec A) (x y: Comp A) :
-  comp_spec eq x y
-  -> Comp_eq x y.
-Proof.
-  intro.
-  apply Comp_eq_evalDist.
-  intro.
-  fcf_to_prhl.
-  cbv [comp_spec] in *.
-  destruct H0.
-  exists x0.
-  destruct H0.
-  destruct H1.
-  split; try split; try assumption.
-  intros.
-  specialize (H2 p H3).
-  rewrite H2.
-  reflexivity.
-Qed.
+  (* TODO: This should be a two-way lemma *)
+  Lemma comp_spec_impl_Comp_eq A (H: EqDec A) (x y: Comp A) :
+    comp_spec eq x y
+    -> Comp_eq x y.
+  Proof.
+    intro.
+    apply Comp_eq_evalDist.
+    intro.
+    fcf_to_prhl.
+    cbv [comp_spec] in *.
+    destruct H0.
+    exists x0.
+    destruct H0.
+    destruct H1.
+    split; try split; try assumption.
+    intros.
+    specialize (H2 p H3).
+    rewrite H2.
+    reflexivity.
+  Qed.
 
 
-Lemma Bind_unused A B (a:Comp A) (b:Comp B) :
-  Comp_eq (_ <-$ a; b) b.
-Admitted. (* TODO: does FCF have something like this? *)
+  Lemma Bind_unused A B (a:Comp A) (b:Comp B) :
+    Comp_eq (_ <-$ a; b) b.
+  Admitted. (* TODO: does FCF have something like this? *)
 
-Lemma PosMap_add_commutes : forall (x y : positive) (H : x <> y) (elt : Type) (m : PositiveMap.t elt) (A B : elt),
-  PositiveMap.add x A (PositiveMap.add y B m) = PositiveMap.add y B (PositiveMap.add x A m).
-Admitted.
+  Lemma PosMap_add_commutes : forall (x y : positive) (H : x <> y) (elt : Type) (m : PositiveMap.t elt) (A B : elt),
+    PositiveMap.add x A (PositiveMap.add y B m) = PositiveMap.add y B (PositiveMap.add x A m).
+  Admitted.
 
 End TODO.
 
@@ -835,18 +835,6 @@ End FillInterp.
            end
     .
 Qed.
-    (* OTP *)
-    (* "Nonuniform cracks in the concrete" (appendix) *)
-
-    (* Symmetric-key that's not OTP *)
-    (* """Kerberos (encryption with two keys) """ *)
-    (* IND-CCA encryption - curve-CP *) 
-    (* Decision Diffie-Hellman assumption *)
-    (* Hash functions *)
-    (* Some assymetric-key primitive *)
-    (* Diffie Hellman key exchange, sigma-i, Hugo <something> , curve-CP*)
-
-
   Lemma indist_rand (x y:positive) : indist (rnd x) (rnd y).
   Proof.
     cbv [indist universal_security_game]; intros.
@@ -910,8 +898,9 @@ Qed.
 
     (* Theorem symbolic_OTP : forall (n : positive) (x : forall (eta : nat), T' eta), indist (const RndT'_symbolic @ (rnd n)) (const T_op' @ const x @ (const RndT'_symbolic @ (rnd n)))%term. *)
 
-    Global Instance Proper_interp_term_late {t} (x : term t) eta : (Proper (pointwise_relation _ PositiveMap.Equal ==> Comp_eq) (interp_term_late x eta)).
-    Admitted.
+    About interp_term_late.
+    (* Global Instance Proper_interp_term_late {t} (x : term t) eta : (Proper (pointwise_relation _ PositiveMap.Equal ==> Comp_eq) (interp_term_late x eta)). *)
+    (* Admitted. *)
 
     Global Instance Proper_map eta: Proper (pointwise_relation (PositiveMap.t (interp_base_type rand eta)) (comp_spec (@eq (T' eta))) ==> Comp_eq) (Bind (ret PositiveMap.empty (interp_type rand eta))).
     Admitted.
@@ -928,42 +917,43 @@ Qed.
       simpl interp_term_late.
       cbv [fresh] in H.
       simpl in H.
-      rewrite H.
+      (* rewrite H. *)
 
       setoid_rewrite empty_inter.
       setoid_rewrite empty_randomness.
       About empty_update_1.
       Opaque PositiveMap.empty.
       Opaque PositiveMapProperties.update.
-      setoid_rewrite empty_update_1.
-      setoid_rewrite Comp_eq_left_ident.
-      setoid_rewrite empty_update_1.
-      setoid_rewrite Comp_eq_left_ident.
-      rewrite PositiveMap.gempty.
-      apply Comp_eq_evalDist.
-      intros.
-      fcf_at fcf_inline fcf_right 0%nat.
-      fcf_at fcf_inline fcf_right 1%nat.
-      fcf_at fcf_inline fcf_right 1%nat.
-      fcf_at fcf_inline fcf_right 1%nat.
-      fcf_at fcf_swap fcf_right 0%nat.
-      fcf_at fcf_swap fcf_right 1%nat.
-      fcf_at fcf_inline fcf_right 1%nat.
-      fcf_irr_r.
-      { admit. }
-      {
-        cbv [RndT'] in comp_spec_otp_l.
-        specialize (comp_spec_otp_l eta x0).
-        assert (Comp_eq
-                  (x <-$ { 0 , 1 }^ len_rand eta; ret RndT'_symbolic eta (cast_rand eta x))
-                  (r <-$ (x <-$ { 0 , 1 }^ len_rand eta; ret RndT'_symbolic eta (cast_rand eta x));
-                   ret T_op' eta x0 r)).
-        { apply comp_spec_impl_Comp_eq in comp_spec_otp_l; assumption. }
-        {
-          apply Comp_eq_evalDist.
-          setoid_rewrite Comp_eq_associativity.
-          apply Proper_Bind.
-          Admitted.
+      Admitted.
+      (* setoid_rewrite empty_update_1. *)
+      (* setoid_rewrite Comp_eq_left_ident. *)
+      (* setoid_rewrite empty_update_1. *)
+      (* setoid_rewrite Comp_eq_left_ident. *)
+      (* rewrite PositiveMap.gempty. *)
+      (* apply Comp_eq_evalDist. *)
+      (* intros. *)
+      (* fcf_at fcf_inline fcf_right 0%nat. *)
+      (* fcf_at fcf_inline fcf_right 1%nat. *)
+      (* fcf_at fcf_inline fcf_right 1%nat. *)
+      (* fcf_at fcf_inline fcf_right 1%nat. *)
+      (* fcf_at fcf_swap fcf_right 0%nat. *)
+      (* fcf_at fcf_swap fcf_right 1%nat. *)
+      (* fcf_at fcf_inline fcf_right 1%nat. *)
+      (* fcf_irr_r. *)
+      (* { admit. } *)
+      (* { *)
+      (*   cbv [RndT'] in comp_spec_otp_l. *)
+      (*   specialize (comp_spec_otp_l eta x0). *)
+      (*   assert (Comp_eq *)
+      (*             (x <-$ { 0 , 1 }^ len_rand eta; ret RndT'_symbolic eta (cast_rand eta x)) *)
+      (*             (r <-$ (x <-$ { 0 , 1 }^ len_rand eta; ret RndT'_symbolic eta (cast_rand eta x)); *)
+      (*              ret T_op' eta x0 r)). *)
+      (*   { apply comp_spec_impl_Comp_eq in comp_spec_otp_l; assumption. } *)
+      (*   { *)
+      (*     apply Comp_eq_evalDist. *)
+      (*     setoid_rewrite Comp_eq_associativity. *)
+      (*     apply Proper_Bind. *)
+      (*     Admitted. *)
     (*       etransitivity. *)
     (*       instantiate (1 := (x <-$ { 0 , 1 }^ len_rand eta; ret RndT'_symbolic eta (cast_rand eta x))). *)
     (*       Unset Printing Notations. *)
