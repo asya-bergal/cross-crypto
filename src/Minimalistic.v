@@ -123,6 +123,107 @@ Section TODO.
       PositiveMap.add x A (PositiveMap.add y B m) = PositiveMap.add y B (PositiveMap.add x A m).
   Admitted.
 
+  Lemma subset_inter s1 s2 s3:
+    PositiveSet.Subset s1 s3 ->
+    PositiveSet.Subset s2 s3 ->
+    PositiveSet.Subset (PositiveSet.inter s1 s2) s3.
+  Admitted.
+  
+  Lemma subset_union s1 s2 s3 :
+    PositiveSet.Subset (PositiveSet.union s2 s3) s1
+    -> PositiveSet.Subset s2 s1 /\ PositiveSet.Subset s3 s1.
+  Admitted.
+
+  Lemma bind_twice {A B:Set} (x: Comp B) (f : B -> B -> Comp A) :
+    Comp_eq (Bind x (fun y => Bind x (f y)))
+            (Bind x (fun y => f y y)).
+  Admitted.
+
+  Lemma find_update_in {A} k (m1 m2 : PositiveMap.t A) :
+    PositiveMap.In k m2 ->
+    PositiveMap.find k (PositiveMapProperties.update m1 m2) =
+    PositiveMap.find k m2.
+  Admitted.
+
+  Lemma find_update_not_in {A} k (m1 m2 : PositiveMap.t A) :
+    ~PositiveMap.In k m2 ->
+    PositiveMap.find k (PositiveMapProperties.update m1 m2) =
+    PositiveMap.find k m1.
+  Admitted.
+
+  Lemma update_assoc {A} (m0 m1 m2 : PositiveMap.t A):
+    PositiveMapProperties.update m0 (PositiveMapProperties.update m1 m2) =
+    PositiveMapProperties.update (PositiveMapProperties.update m0 m1) m2.
+  Admitted.
+
+  Lemma update_add {A} (m0 m1:PositiveMap.t A) i a :
+    PositiveMap.Equal
+      (PositiveMapProperties.update m0 (PositiveMap.add i a m1))
+      (PositiveMap.add i a (PositiveMapProperties.update m0 m1)).
+  Proof.
+  Admitted.
+  
+  Lemma union_remove_equal x s s' s1 s2
+        (Hadd: PositiveSetProperties.Add x s s') :
+    ~PositiveSet.In x s ->
+    PositiveSet.Equal (PositiveSet.union s1 s2) s' ->
+    PositiveSet.Equal (PositiveSet.union (PositiveSet.remove x s1)
+                                         (PositiveSet.remove x s2)) s.
+  Proof.
+    cbv [PositiveSet.Equal PositiveSetProperties.Add] in *; intros.
+    match goal with H: forall _, PositiveSet.In _ _ <-> PositiveSet.In _ _
+                                 |- context [PositiveSet.In ?x] =>
+                    specialize (H x) end.
+    rewrite Hadd in *.
+    rewrite PositiveSet.union_spec in *.
+    rewrite !PositiveSet.remove_spec in *.
+    (* asserts because tauto is bad at substituting *)
+    assert (x = a <-> a = x) by (split; congruence).
+    assert (x = a -> ~ PositiveSet.In a s) by congruence.
+    repeat match goal with
+           | _ => progress intros
+           | H: _ /\ _ |- _ => destruct H
+           | H: _ \/ _ |- _ => destruct H
+           | _ => split
+           | _ => tauto
+           end.
+  Qed.
+
+  Lemma update_overwrite {A} x (m1 m2 : PositiveMap.t A) :
+    PositiveMap.In x m2 ->
+    PositiveMap.Equal 
+      (PositiveMapProperties.update m1 m2)
+      (PositiveMapProperties.update (PositiveMap.remove x m1) m2).
+  Admitted.
+
+
+  Lemma union_remove s1 s2 x :
+    PositiveSet.Equal (PositiveSet.union s1 s2)
+                      (PositiveSet.union s1 (PositiveSet.remove x s2)).
+  Admitted.
+
+  Lemma empty_not_in {A} m :
+    @PositiveMap.Empty A m <-> forall x, ~PositiveMap.In x m.
+  Proof.
+    cbv [PositiveMap.Empty PositiveMap.MapsTo PositiveMap.In not neq].
+    split; repeat match goal with
+                  | _ => progress intro
+                  | H: exists _, _ |- _ => destruct H
+                  | _ => solve [eauto]
+                  end.
+  Qed.
+
+  Lemma update_empty_r {A} (m1 m2: PositiveMap.t A) :
+    PositiveMap.Empty m2 ->
+    PositiveMap.Equal (PositiveMapProperties.update m1 m2) m1.
+  Admitted.
+
+  Lemma update_subset {A} (m1 m2 : PositiveMap.t A) :
+    (forall k, PositiveMap.In k m1 -> PositiveMap.In k m2) ->
+    PositiveMap.Equal (PositiveMapProperties.update m1 m2) m2.
+  Admitted.
+
+
 End TODO.
 
 Section Language.
@@ -198,88 +299,181 @@ Section Language.
   Admitted.
 
   Context (len_rand : forall eta:nat, nat)
-          (cast_rand : forall eta, Bvector (len_rand eta) -> interp_type rand eta).
+          (cast_rand : forall eta, Bvector (len_rand eta)
+                                   -> interp_type rand eta).
+  Section GenerateRandomness. 
+    Context (eta:nat).
 
-  Definition generate_randomness_single eta i rndC := 
-    rnds' <-$ rndC;
-      ri <-$ {0,1}^(len_rand eta);
-      ret (PositiveMap.add i (cast_rand eta ri) rnds').
-  Definition generate_randomness (eta:nat) idxs
-    : Comp (PositiveMap.t (interp_type rand eta))
-    := PositiveSet.fold (generate_randomness_single eta)
-                        idxs
-                        (ret (PositiveMap.empty _)).
+    Definition generate_randomness_single i rndC := 
+      rnds' <-$ rndC;
+        ri <-$ {0,1}^(len_rand eta);
+        ret (PositiveMap.add i (cast_rand eta ri) rnds').
 
-  Lemma empty_randomness : forall (eta : nat),
-      Comp_eq (generate_randomness eta PositiveSet.empty)
-      (ret (PositiveMap.empty _)).
-  Proof.
-    intros.
-    cbv [generate_randomness].
-    rewrite PositiveSetProperties.fold_empty.
-    reflexivity.
-  Qed.
+    Definition generate_randomness idxs
+      : Comp (PositiveMap.t (interp_type rand eta))
+      := PositiveSet.fold generate_randomness_single
+                          idxs
+                          (ret (PositiveMap.empty _)).
 
-  Lemma singleton_randomness : forall (eta : nat) (n : positive),
-      Comp_eq (generate_randomness eta (PositiveSet.singleton n))
-              (ri <-$ {0,1}^(len_rand eta);
-                 ret (PositiveMap.add n (cast_rand eta ri) (PositiveMap.empty _))).
-  Proof.
-    intros.
-    cbv [generate_randomness generate_randomness_single PositiveSet.singleton].
-    rewrite PositiveSetProperties.fold_add.
-    {
+    Lemma empty_randomness : 
+        Comp_eq (generate_randomness PositiveSet.empty)
+                (ret (PositiveMap.empty _)).
+    Proof.
+      intros; cbv [generate_randomness].
       rewrite PositiveSetProperties.fold_empty.
-      rewrite Bind_Ret_l.
-      { reflexivity. }
-    (* } *)
-    (* { admit. } *)
-    (* { *)
-    (*   cbv [Proper respectful pointwise_relation RelCompFun]. *)
-    (*   intros. *)
-    (*   rewrite H. *)
-    (*   assert (Comp_eq x0 y0). *)
-    (*   apply Comp_eq_evalDist. *)
-    (*   intros. *)
-    (*   setoid_rewrite H0. *)
-    (*   reflexivity. *)
-    (* } *)
-    (* { *)
-    (*   cbv [transpose pointwise_relation RelCompFun]. *)
-    (*   intros. (* *)
-    (*   (* TODO: Make these all tactics you can perform on Comp_eqs + ask andres about this *) *)
-    (*   apply Comp_eq_evalDist. *)
-    (*   intros. *)
-    (*   fcf_inline_first. *)
-    (*   fcf_skip. *)
-    (*   fcf_inline_first. *)
-    (*   fcf_at fcf_swap fcf_left 1%nat. *)
-    (*   fcf_at fcf_swap fcf_right 1%nat. *)
-    (*   fcf_at fcf_ret fcf_left 2%nat. *)
-    (*   fcf_at fcf_ret fcf_right 2%nat. *)
-    (*   apply Comp_eq_evalDist. *)
-    (*   destruct (Pos.eq_dec x y). *)
-    (*   { rewrite e; reflexivity. } *)
-    (*   { admit. } *)
+      reflexivity.
+    Qed.
 
-    (*   (* { *) *)
-    (*   (*   remember (PosMap_add_commutes x y n0 (interp_type rand eta) x0) as comm. *) *)
-    (*   (*   assert (evalDist *) *)
-    (*   (*     (a0 <-$ { 0 , 1 }^ len_rand eta; *) *)
-    (*   (*        a1 <-$ { 0 , 1 }^ len_rand eta; *) *)
-    (*   (*        ret PositiveMap.add y (cast_rand eta a0) (PositiveMap.add x (cast_rand eta a1) x0)) a == *) *)
-    (*   (*           evalDist *) *)
-    (*   (*     (a0 <-$ { 0 , 1 }^ len_rand eta; *) *)
-    (*   (*        a1 <-$ { 0 , 1 }^ len_rand eta; *) *)
-    (*   (*        ret PositiveMap.add y (cast_rand eta a1) (PositiveMap.add x (cast_rand eta a0) x0)) a). *) *)
-    (*   (*   { *) *)
-    (*   (*     fcf_at fcf_swap fcf_right 0%nat. *) *)
-    (*   (*     reflexivity. *) *)
-    (*   (*   } *) *)
-    (*     (* TODO: Do this rewrite under a bind. *) *)
-    (*   } *)
-    (* { cbv [not]; apply (PositiveSetProperties.Dec.F.empty_iff n). } *) *)
-  Admitted.
+    Global Instance Proper_generate_randomness_single :
+      Proper (eq ==> Comp_eq ==> Comp_eq) generate_randomness_single.
+    Proof.
+      cbv [Proper respectful generate_randomness_single]; intros; subst.
+      match goal with H: Comp_eq _ _ |- _ => rewrite H; reflexivity end.
+    Qed.
+
+    Lemma generate_randomness_single_transpose :
+      transpose Comp_eq generate_randomness_single.
+    Admitted.
+
+    Lemma add_generate_randomness {A} (f:_->Comp A) x s s' :
+      PositiveSetProperties.Add x s s' ->
+      ~PositiveSet.In x s ->
+      Comp_eq (a <-$ generate_randomness s'; f a)
+              (a <-$ {0,1}^len_rand eta;
+                 b <-$ generate_randomness s;
+                 f (PositiveMap.add x (cast_rand eta a) b)).
+    Proof.
+      cbv [generate_randomness]; intros.
+      rewrite PositiveSetProperties.fold_2 by
+          (try eassumption; try (exact _);
+           auto using generate_randomness_single_transpose).
+      cbv [generate_randomness_single].
+      repeat setoid_rewrite <-Bind_assoc;
+      repeat setoid_rewrite Bind_Ret_l;
+      rewrite Bind_comm with (c2 := {0,1}^len_rand _).
+      reflexivity.
+    Qed.
+
+    Lemma generate_single i idxs:
+      forall {A} (f:_->Comp A),
+        PositiveSet.In i idxs ->
+        Comp_eq
+          (t <-$ generate_randomness idxs;
+             f (PositiveMap.find i t))
+          (r <-$ { 0 , 1 }^ len_rand eta; f (Some (cast_rand eta r))).
+    Proof.
+      intros.
+      apply PositiveSetProperties.Add_remove in H.
+      rewrite add_generate_randomness
+        by eauto using PositiveSetProperties.Dec.F.remove_1.
+
+      (* TODO: this should work but doesn't:  
+         setoid_rewrite PositiveMapProperties.F.add_eq_o *)
+      f_equiv; cbv [pointwise_relation]; intros.
+      etransitivity. {
+        apply Proper_Bind; [reflexivity|].
+        cbv [pointwise_relation]; intros.
+        rewrite PositiveMapProperties.F.add_eq_o by reflexivity.
+        eapply reflexivity. }
+      rewrite Bind_unused; reflexivity.
+    Qed. 
+
+    Lemma Proper_Bind_generate_randomness {A: Set} idxs :
+      Proper (
+          (fun f g =>
+                 forall m,
+                   (forall i, PositiveMap.In i m <-> PositiveSet.In i idxs) ->
+                   Comp_eq (f m) (g m))
+                ==> Comp_eq)
+             (Bind (A:=A) (generate_randomness idxs)).
+    Proof.
+      cbv [Proper respectful generate_randomness].
+      match goal with |- context [PositiveSet.fold ?f _] =>
+                      set (F:=f) end.
+      apply PositiveSetProperties.fold_rec; [|subst F; simpl];
+        repeat match goal with
+               | _ => progress intros
+               | _ => setoid_rewrite Bind_Ret_l
+               | _ => setoid_rewrite <-Bind_assoc
+               | _ => rewrite PositiveMapProperties.F.empty_in_iff
+               | H: forall m, _ -> Comp_eq (_ m) (_ m) |- _ => apply H; intros
+               | H: PositiveSet.Empty _ |- context[PositiveSet.In ?x _] =>
+                 specialize (H x)
+               | H: forall _ _, _ -> Comp_eq (Bind _ _) (Bind _ _)
+                                |- _ => apply H; intros
+               | H: forall m, _ -> Comp_eq (_ m) (_ m)
+                              |- _ => apply H; intros
+               | _ => rewrite PositiveMapFacts.add_in_iff
+               | H: PositiveSetProperties.Add _ _ _ |- context [PositiveSet.In ?x] =>
+                 cbv [PositiveSetProperties.Add] in H; specialize (H x)
+               | |- Comp_eq (Bind ?x _) (Bind ?x _) =>
+                 apply Proper_Bind;[reflexivity|];
+                   cbv [pointwise_relation]; intros
+               | H: _ |- _ => rewrite H; tauto
+               | _ => tauto
+               end.
+    Qed.
+
+    Global Instance Proper_generate_randomness :
+      Proper (PositiveSet.Equal ==> Comp_eq) generate_randomness.
+    Proof.
+      cbv [Proper respectful generate_randomness].
+      intros.
+      cbv [PositiveSet.Equal] in H.
+      apply PositiveSetProperties.fold_equal;
+        auto using generate_randomness_single_transpose; try exact _.
+     Qed.
+
+    Lemma generate_twice idxs1 :
+      forall idxs2 {A} (f:_->Comp A),
+        Proper (PositiveMap.Equal ==> Comp_eq) f ->
+        Comp_eq
+          (a <-$ generate_randomness idxs1;
+             b <-$ generate_randomness idxs2;
+             f (PositiveMapProperties.update b a))
+          (a <-$ generate_randomness (PositiveSet.union idxs1 idxs2);
+             f a).
+    Proof.
+      apply PositiveSetProperties.set_induction with (s:=idxs1).
+      {
+        intros.
+        etransitivity. {
+          do 2 (eapply Proper_Bind_generate_randomness; intros).
+          rewrite update_empty_r; [eapply reflexivity|].
+          apply empty_not_in; intros; cbv [PositiveSet.Empty] in *.
+          repeat match goal with
+                 | H: forall _, _ |- context[PositiveMap.In ?x] =>
+                   specialize (H x) end; tauto. }
+        rewrite Bind_unused.
+        rewrite PositiveSetProperties.empty_union_1 by assumption.
+        reflexivity. }
+      { intros until 1. intro new_elt; intros.
+        rewrite add_generate_randomness with (s'0:=s') by eassumption.
+        rewrite add_generate_randomness with
+        (s0:=PositiveSet.union s (PositiveSet.remove new_elt idxs2))
+          (s'0:=PositiveSet.union s' idxs2) (x:=new_elt).
+        Focus 2. {
+          cbv [PositiveSetProperties.Add]; intros.
+          rewrite (union_remove s' idxs2 new_elt).
+          eapply PositiveSetProperties.union_Add.
+          assumption. } Unfocus.
+        Focus 2. {
+          rewrite !PositiveSet.union_spec, PositiveSet.remove_spec.
+          assert (new_elt = new_elt) by reflexivity.
+          tauto. } Unfocus.
+
+        setoid_rewrite update_add.
+        f_equiv; cbv [pointwise_relation]; intros.
+        match goal with H: _ |- context [PositiveMap.add ?i ?x] =>
+                        rewrite H with (f:=fun m => f (PositiveMap.add i x m)) end.
+        rewrite <-union_remove; try reflexivity.
+        cbv [Proper respectful]; intros;
+          match goal with H: PositiveMap.Equal _ _ |- _ => rewrite H end;
+          reflexivity. }
+    Qed.
+
+    End GenerateRandomness.
+
 
   Context (unreachable:forall {i}, Bvector (len_rand i)).
   Global Instance EqDec_interp_type : forall t eta, EqDec (interp_type t eta). Admitted. (* TODO: functional extensionality? *)
@@ -297,6 +491,15 @@ Section Language.
              (adv: interp_type list_message eta -> interp_type message eta)
     : Comp (interp_type t eta)
     := rands <-$ generate_randomness eta (randomness_indices e); ret (interp_term_fixed e eta adv rands).
+
+  Global Instance Proper_interp_term_fixed {t} (e:term t) eta adv :
+    Proper (PositiveMap.Equal ==> Logic.eq) (interp_term_fixed e eta adv).
+  Proof.
+    cbv [Proper respectful]; induction e; intros; simpl; try reflexivity.
+    { cbv [PositiveMap.Equal] in *. rewrite H. reflexivity. }
+    { erewrite IHe; eauto. }
+    { erewrite IHe1, IHe2; eauto. }
+  Qed.
 
   Section Security.
     (* the adversary is split into three parts for no particular reason. It first decides how much randomness it will need, then interacts with the protocol (repeated calls to [adverary] with all messages up to now as input), and then tries to claim victory ([distinguisher]). There is no explicit sharing of state between these procedures, but all of them get the same random inputs in the security game. The handling of state is a major difference between FCF [OracleComp] and this framework *)
@@ -390,286 +593,6 @@ Section LateInterp.
           f <-$ interp_term_late f eta adv rands;
           ret (f x)
       end.
-
-    Local Ltac peel_level :=
-      apply Proper_Bind; [reflexivity|]; cbv [pointwise_relation]; intros.
-
-    Local Ltac rewrite_in_bind H t :=
-      apply Proper_Bind; [rewrite H by t; reflexivity|]; cbv [pointwise_relation]; intros.
-
-    Local Ltac resolve_left :=
-          match goal with |- Comp_eq ?lhs (_ ?a) =>
-                          match (eval pattern a in lhs) with
-                            ?f _ => set (F :=f); transitivity (F a);
-                                    [subst F; reflexivity | reflexivity]
-                          end end.
-    Local Ltac resolve_right := symmetry; resolve_left.
-
-    Lemma update_subset {A} (m1 m2 : PositiveMap.t A) :
-      (forall k, PositiveMap.In k m1 -> PositiveMap.In k m2) ->
-      PositiveMap.Equal (PositiveMapProperties.update m1 m2) m2.
-    Admitted.
-
-    Global Instance Proper_generate_randomness eta :
-      Proper (PositiveSet.Equal ==> Comp_eq) (generate_randomness eta).
-    Proof.
-      cbv [Proper respectful generate_randomness].
-      match goal with |- context [PositiveSet.fold ?f _] =>
-                      set (F:=f) end.
-      intros.
-      cbv [PositiveSet.Equal] in H.
-      apply PositiveSetProperties.fold_equal; auto; try exact _.
-      { subst F. cbv [Proper respectful]; intros.
-        apply Proper_Bind; subst; (congruence || reflexivity). }
-      { subst F; cbv [transpose]; intros.
-        repeat setoid_rewrite <-Bind_assoc.
-        repeat setoid_rewrite Bind_Ret_l.
-        do 1 peel_level.
-        (* if we generate two random numbers, swapping the order preserves indist *)
-     Admitted.
-
-    Lemma Proper_Bind_generate_randomness {A: Set} eta idxs :
-      Proper (
-          (fun f g =>
-                 forall m,
-                   (forall i, PositiveMap.In i m <-> PositiveSet.In i idxs) ->
-                   Comp_eq (f m) (g m))
-                ==> Comp_eq)
-             (Bind (A:=A) (generate_randomness eta idxs)).
-    Proof.
-      cbv [Proper respectful generate_randomness].
-      match goal with |- context [PositiveSet.fold ?f _] =>
-                      set (F:=f) end.
-      apply PositiveSetProperties.fold_rec; [|subst F; simpl];
-        repeat match goal with
-               | _ => progress intros
-               | _ => setoid_rewrite Bind_Ret_l
-               | _ => setoid_rewrite <-Bind_assoc
-               | _ => rewrite PositiveMapProperties.F.empty_in_iff
-               | H: forall m, _ -> Comp_eq (_ m) (_ m) |- _ => apply H; intros
-               | H: PositiveSet.Empty _ |- context[PositiveSet.In ?x _] =>
-                 specialize (H x)
-               | H: forall _ _, _ -> Comp_eq (Bind _ _) (Bind _ _)
-                                |- _ => apply H; intros
-               | H: forall m, _ -> Comp_eq (_ m) (_ m)
-                              |- _ => apply H; intros
-               | _ => rewrite PositiveMapFacts.add_in_iff
-               | H: PositiveSetProperties.Add _ _ _ |- context [PositiveSet.In ?x] =>
-                 cbv [PositiveSetProperties.Add] in H; specialize (H x)
-               | |- Comp_eq (Bind ?x _) (Bind ?x _) => peel_level
-               | H: _ |- _ => rewrite H; tauto
-               | _ => tauto
-               end.
-    Qed.
-    
-    Lemma subset_inter s1 s2 s3:
-      PositiveSet.Subset s1 s3 ->
-      PositiveSet.Subset s2 s3 ->
-      PositiveSet.Subset (PositiveSet.inter s1 s2) s3.
-    Admitted.
-    
-    Lemma subset_union s1 s2 s3 :
-      PositiveSet.Subset (PositiveSet.union s2 s3) s1
-      -> PositiveSet.Subset s2 s1 /\ PositiveSet.Subset s3 s1.
-    Admitted.
-
-    Lemma bind_twice {A B:Set} (x: Comp B) (f : B -> B -> Comp A) :
-      Comp_eq (Bind x (fun y => Bind x (f y)))
-              (Bind x (fun y => f y y)).
-    Admitted.
-
-    Lemma find_update_in {A} k (m1 m2 : PositiveMap.t A) :
-      PositiveMap.In k m2 ->
-      PositiveMap.find k (PositiveMapProperties.update m1 m2) =
-      PositiveMap.find k m2.
-    Admitted.
-
-    Lemma find_update_not_in {A} k (m1 m2 : PositiveMap.t A) :
-      ~PositiveMap.In k m2 ->
-      PositiveMap.find k (PositiveMapProperties.update m1 m2) =
-      PositiveMap.find k m1.
-    Admitted.
-
-    Lemma update_assoc {A} (m0 m1 m2 : PositiveMap.t A):
-      PositiveMapProperties.update m0 (PositiveMapProperties.update m1 m2) =
-      PositiveMapProperties.update (PositiveMapProperties.update m0 m1) m2.
-    Admitted.
-
-
-    Global Instance Proper_generate_randomness_single eta :
-      Proper (eq ==> Comp_eq ==> Comp_eq) (generate_randomness_single eta).
-    Proof.
-      cbv [Proper respectful generate_randomness_single]; intros; subst.
-      rewrite H0. reflexivity.
-    Qed.
-
-    Lemma generate_randomness_single_transpose eta :
-      transpose Comp_eq (generate_randomness_single eta).
-    Admitted.
-
-    Lemma update_add {A} (m0 m1:PositiveMap.t A) i a :
-      PositiveMap.Equal
-        (PositiveMapProperties.update m0 (PositiveMap.add i a m1))
-        (PositiveMap.add i a (PositiveMapProperties.update m0 m1)).
-    Proof.
-    Admitted.
-    
-    Lemma union_remove_equal x s s' s1 s2
-      (Hadd: PositiveSetProperties.Add x s s') :
-      ~PositiveSet.In x s ->
-      PositiveSet.Equal (PositiveSet.union s1 s2) s' ->
-      PositiveSet.Equal (PositiveSet.union (PositiveSet.remove x s1)
-                                           (PositiveSet.remove x s2)) s.
-    Proof.
-      cbv [PositiveSet.Equal PositiveSetProperties.Add] in *; intros.
-      match goal with H: forall _, PositiveSet.In _ _ <-> PositiveSet.In _ _
-                                   |- context [PositiveSet.In ?x] =>
-                      specialize (H x) end.
-      rewrite Hadd in *.
-      rewrite PositiveSet.union_spec in *.
-      rewrite !PositiveSet.remove_spec in *.
-      (* asserts because tauto is bad at substituting *)
-      assert (x = a <-> a = x) by (split; congruence).
-      assert (x = a -> ~ PositiveSet.In a s) by congruence.
-      repeat match goal with
-             | _ => progress intros
-             | H: _ /\ _ |- _ => destruct H
-             | H: _ \/ _ |- _ => destruct H
-             | _ => split
-             | _ => tauto
-             end.
-    Qed.
-
-    Lemma update_overwrite {A} x (m1 m2 : PositiveMap.t A) :
-      PositiveMap.In x m2 ->
-      PositiveMap.Equal 
-        (PositiveMapProperties.update m1 m2)
-        (PositiveMapProperties.update (PositiveMap.remove x m1) m2).
-    Admitted.
-      
-    Lemma add_generate_randomness {A} eta (f:_->Comp A) x s s' :
-      PositiveSetProperties.Add x s s' ->
-      ~PositiveSet.In x s ->
-      Comp_eq (a <-$ generate_randomness eta s'; f a)
-              (a <-$ generate_randomness_single eta x
-                 (generate_randomness eta s); f a).
-    Proof.
-      cbv [generate_randomness]; intros.
-      rewrite PositiveSetProperties.fold_2 by
-          (try eassumption; try (exact _);
-           auto using generate_randomness_single_transpose).
-      reflexivity.
-    Qed.
-
-    Lemma union_remove s1 s2 x :
-      PositiveSet.Equal (PositiveSet.union s1 s2)
-                        (PositiveSet.union s1 (PositiveSet.remove x s2)).
-    Admitted.
-
-    Lemma empty_not_in {A} m :
-      @PositiveMap.Empty A m <-> forall x, ~PositiveMap.In x m.
-    Proof.
-      cbv [PositiveMap.Empty PositiveMap.MapsTo PositiveMap.In not neq].
-      split; repeat match goal with
-                    | _ => progress intro
-                    | H: exists _, _ |- _ => destruct H
-                    | _ => solve [eauto]
-                    end.
-    Qed.
-
-    Lemma update_empty_r {A} (m1 m2: PositiveMap.t A) :
-      PositiveMap.Empty m2 ->
-      PositiveMap.Equal (PositiveMapProperties.update m1 m2) m1.
-    Admitted.
-
-    Local Ltac move_rand_to_top := 
-      cbv [generate_randomness_single];
-      repeat setoid_rewrite <-Bind_assoc;
-      repeat setoid_rewrite Bind_Ret_l;
-      rewrite Bind_comm with (c2 := {0,1}^len_rand _).
-
-    Lemma generate_single eta i idxs:
-      forall {A} (f:_->Comp A),
-        PositiveSet.In i idxs ->
-        Comp_eq
-          (t <-$ generate_randomness eta idxs;
-             f (PositiveMap.find i t))
-          (r <-$ { 0 , 1 }^ len_rand eta; f (Some (cast_rand eta r))).
-    Proof.
-      intros.
-      apply PositiveSetProperties.Add_remove in H.
-      rewrite add_generate_randomness
-        by eauto using PositiveSetProperties.Dec.F.remove_1.
-      move_rand_to_top.
-      etransitivity. {
-        do 2 peel_level.
-        rewrite PositiveMapProperties.F.add_eq_o by reflexivity.
-        eapply reflexivity. }
-      setoid_rewrite Bind_unused; reflexivity.
-    Qed. 
-
-    Lemma generate_twice eta idxs1 :
-      forall idxs2 {A} (f:_->Comp A),
-        Proper (PositiveMap.Equal ==> Comp_eq) f ->
-      Comp_eq
-        (a <-$ generate_randomness eta idxs1;
-           b <-$ generate_randomness eta idxs2;
-           f (PositiveMapProperties.update b a))
-        (a <-$ generate_randomness eta (PositiveSet.union idxs1 idxs2);
-           f a).
-    Proof.
-      apply PositiveSetProperties.set_induction with (s:=idxs1).
-      {
-        intros.
-        etransitivity. {
-          do 2 (eapply Proper_Bind_generate_randomness; intros).
-          rewrite update_empty_r; [eapply reflexivity|].
-          apply empty_not_in; intros; cbv [PositiveSet.Empty] in *.
-          repeat match goal with
-                 | H: forall _, _ |- context[PositiveMap.In ?x] =>
-                   specialize (H x) end; tauto. }
-        rewrite Bind_unused, PositiveSetProperties.empty_union_1 by assumption.
-        reflexivity. }
-      { intros until 1. intro new_elt; intros.
-        
-        (* move the new elt to the top on the LHS *)
-        rewrite add_generate_randomness with (s'0:=s') by eassumption.
-        move_rand_to_top.
-
-        (* and on the RHS *)
-        rewrite add_generate_randomness with
-        (s0:=PositiveSet.union s (PositiveSet.remove new_elt idxs2))
-          (s'0:=PositiveSet.union s' idxs2) (x:=new_elt).
-        Focus 2. {
-          cbv [PositiveSetProperties.Add]; intros.
-          rewrite (union_remove s' idxs2 new_elt).
-          eapply PositiveSetProperties.union_Add.
-          assumption. } Unfocus.
-        Focus 2. {
-          rewrite !PositiveSet.union_spec, PositiveSet.remove_spec.
-          assert (new_elt = new_elt) by reflexivity.
-          tauto. } Unfocus.
-        move_rand_to_top.
-
-        (* apply inductive hypothesis *)
-        setoid_rewrite update_add.
-        peel_level.
-        match goal with H: _ |- context [PositiveMap.add ?i ?x] =>
-                        rewrite H with (f:=fun m => f (PositiveMap.add i x m)) end.
-        rewrite <-union_remove; try reflexivity.
-        cbv [Proper respectful]; intros;
-          match goal with H: PositiveMap.Equal _ _ |- _ => rewrite H end;
-        reflexivity. }
-    Qed.
-
-    Global Instance Proper_interp_term_fixed {t} (e:term t) eta adv :
-      Proper (PositiveMap.Equal ==> Logic.eq) (interp_term_fixed e eta adv).
-    Proof.
-      cbv [Proper respectful]; induction e; intros; simpl; try reflexivity.
-      { cbv [PositiveMap.Equal] in *. rewrite H. reflexivity. }
-      { erewrite IHe; eauto. }
-      { erewrite IHe1, IHe2; eauto. }
-    Qed.
 
     Lemma interp_term_late_correct' {t} (e:term t) eta adv :
       forall univ (H:PositiveSet.Subset (randomness_indices e) univ) fixed,
@@ -844,10 +767,12 @@ Section FillInterp.
              | _ => rewrite Bind_Ret_l
              end.
 
+      (* (* Uncomment for more concise proof term *)
       Local Notation "x & y" := (PositiveSet.inter x y) (at level 70, only printing).
       Local Notation "x | y" := (PositiveSet.union x y) (at level 70, only printing).
       Local Notation "#idx x" := (randomness_indices x) (at level 70, only printing).
       Local Notation "&idx x" := (randomness_indices_wh x) (at level 70, only printing).
+      *)
 
       etransitivity.
       Focus 2. {
