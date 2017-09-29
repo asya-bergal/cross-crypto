@@ -119,9 +119,18 @@ Section TODO.
     Comp_eq (_ <-$ a; b) b.
   Admitted. (* TODO: does FCF have something like this? *)
 
-  Lemma PosMap_add_commutes : forall (x y : positive) (elt : Type) (m : PositiveMap.t elt) (A B : elt),
-      PositiveMap.add x A (PositiveMap.add y B m) = PositiveMap.add y B (PositiveMap.add x A m).
-  Admitted.
+  Lemma PosMap_add_commutes {A} x y (m : PositiveMap.t A) a b :
+  (x <> y \/ a = b) ->
+  PositiveMap.Equal (PositiveMap.add x a (PositiveMap.add y b m))
+                    (PositiveMap.add y b (PositiveMap.add x a m)).
+  Proof.
+    cbv [PositiveMap.Equal]; destruct 1; intros;
+      repeat match goal with
+               | _ => rewrite PositiveMapFacts.add_o
+               | |- context [if ?x then _ else _] =>
+                 destruct x; subst; try congruence
+             end.
+  Qed.
 
   Lemma subset_inter s1 s2 s3:
     PositiveSet.Subset s1 s3 ->
@@ -331,8 +340,35 @@ Section Language.
       match goal with H: Comp_eq _ _ |- _ => rewrite H; reflexivity end.
     Qed.
 
+    (* TODO: move *)
+    Lemma add_add_eq {A} x y (a b : A) m: x = y ->
+      PositiveMap.Equal
+        (PositiveMap.add x a (PositiveMap.add y b m))
+        (PositiveMap.add x a m).
+    Admitted.
+
+
+    (* TODO: This is unprovable; it is true if programs only use the
+    map interface functions and never modify the map structurally. To
+    prove this you need a canonical map.*)
     Lemma generate_randomness_single_transpose :
       transpose Comp_eq generate_randomness_single.
+    Proof.
+      cbv [transpose generate_randomness_single]; intros.
+      repeat setoid_rewrite <-Bind_assoc.
+      repeat setoid_rewrite Bind_Ret_l.
+
+      destruct (Pos.eq_dec x y).
+      {
+        etransitivity.
+        { 
+          do 3 (eapply Proper_Bind; [reflexivity|];
+                cbv [pointwise_relation]; intros).
+
+          (* Line below fails because Ret is not proper over
+          PositiveMap.eq *)
+          (* rewrite add_add_eq. *)
+          
     Admitted.
 
     Lemma add_generate_randomness {A} (f:_->Comp A) x s s' :
