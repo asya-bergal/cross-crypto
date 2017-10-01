@@ -1,9 +1,10 @@
-* First order logic [done]
-* Symbolic interpretations [done?]
-* Computational interpretations
-** Integration with FCF
-* Protocols [done?]
-* Symbolic execution [done?]
-* Computational execution
-* Folding
-* Soundness proof
+* Specification of primitives
+ * Simple primitive specification (e.g. 1-time MAC)
+ * Authenticated Encryption specification
+ * Evaluate limitations
+* Protocols
+ * Write down single session of SIGMA
+   (http://webee.technion.ac.il/~hugo/sigma-pdf.pdf)
+ * Think about arbitary-length executions
+ * Think about parallel executions
+* Clean up Minimalistic.v
