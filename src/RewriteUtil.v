@@ -61,14 +61,18 @@ Proof.
       intros; subst; (try match goal with H1:_ |- _ => eapply H1 end;reflexivity). }
 Qed.
 
+Global Instance Proper_Ret {A} {R} : Proper (R ==> pointwise_relation _ Comp_eq) (@Ret A).
+Proof.
+  intros eq1 eq2 ? x1 x2.
+  cbv [Comp_eq image_relation pointwise_relation evalDist].
+  destruct (eq1 x1 x2), (eq2 x1 x2); (congruence||reflexivity).
+Qed. 
+
 Global Instance Proper_Bind {A B} : Proper (Comp_eq ==> (pointwise_relation _ Comp_eq) ==> Comp_eq) (@Bind A B).
 Proof.
   intros ?? H ?? G ?. simpl evalDist.
   setoid_rewrite H. setoid_rewrite G. reflexivity.
 Qed.
-
-Lemma eq_impl_negligible : forall A (x y : nat -> Comp A), pointwise_relation _ Comp_eq x y -> forall t, negligible (fun eta : nat => | evalDist (x eta) t - evalDist (y eta) t|).
-Admitted.
 
 Lemma Comp_eq_bool (x y:Comp bool) :
   well_formed_comp x
