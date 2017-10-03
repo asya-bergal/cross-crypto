@@ -198,6 +198,12 @@ Section TODO.
            end.
   Qed.
 
+  Lemma add_add_eq {A} x y (a b : A) m (H:x = y) :
+    PositiveMap.Equal
+      (PositiveMap.add x a (PositiveMap.add y b m))
+      (PositiveMap.add x a m).
+  Admitted.
+
   Lemma update_overwrite {A} x (m1 m2 : PositiveMap.t A) :
     PositiveMap.In x m2 ->
     PositiveMap.Equal 
@@ -339,13 +345,6 @@ Section Language.
       cbv [Proper respectful generate_randomness_single]; intros; subst.
       match goal with H: Comp_eq _ _ |- _ => rewrite H; reflexivity end.
     Qed.
-
-    (* TODO: move *)
-    Lemma add_add_eq {A} x y (a b : A) m: x = y ->
-      PositiveMap.Equal
-        (PositiveMap.add x a (PositiveMap.add y b m))
-        (PositiveMap.add x a m).
-    Admitted.
 
 
     (* TODO: This is unprovable; it is true if programs only use the
@@ -555,19 +554,12 @@ Section Language.
         negligible (fun eta => | Pr[game eta a] -  Pr[game eta b] | ).
 
     Global Instance Equivalence_indist {t} : Equivalence (@indist t) := _.
-    Admitted.
-
-    Global Instance Transitive_indist {t} : Transitive (@indist t).
-    Admitted.
-
-    Global Instance Reflexive_indist {t} : Reflexive (@indist t).
     Proof.
-      cbv [Reflexive indist]; setoid_rewrite ratDistance_same; eauto using negligible_0.
-    Qed.
-
-    Global Instance Symmetric_indist {t} : Symmetric (@indist t).
-    Proof.
-      cbv [Symmetric indist]; intros; setoid_rewrite ratDistance_comm; eauto.
+      split; cbv [Reflexive Symmetric Transitive indist]; intros;
+       [ setoid_rewrite ratDistance_same (* Reflexive *)
+       | setoid_rewrite ratDistance_comm (* Symmetric *)
+       | setoid_rewrite ratTriangleInequality ]; (* Transitive *)
+       eauto using negligible_0, negligible_plus.
     Qed.
   End Security.
 
