@@ -23,6 +23,24 @@ Lemma negligible_0 : negligible (fun _ => 0).
   { apply negligible_const_num. }
 Qed.
 
+Global Instance Reflexive_negligible_ratDistance :
+  Reflexive (fun f g => negligible (fun eta => | f eta - g eta |)).
+Proof.
+  intros ?; setoid_rewrite ratDistance_same; eapply negligible_0.
+Qed.
+
+Global Instance Symmetric_negligible_ratDistance :
+  Symmetric (fun f g => negligible (fun eta => | f eta - g eta |)).
+Proof.
+  intros ???; setoid_rewrite ratDistance_comm; assumption.
+Qed.
+
+Global Instance Transitive_negligible_ratDistance :
+  Transitive (fun f g => negligible (fun eta => | f eta - g eta |)).
+Proof.
+  intros ?????; setoid_rewrite ratTriangleInequality; eauto using negligible_plus.
+Qed.
+
 Definition image_relation {T} (R:T->T->Prop) {A} (f:A->T) := fun x y => R (f x) (f y).
 Global Instance Equivalence_image_relation {T R} {Equivalence_R:Equivalence R} {A} (f:A->T) :
   Equivalence (image_relation R f).
