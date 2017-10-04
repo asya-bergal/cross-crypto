@@ -676,5 +676,30 @@ Section Language.
       intros t u x y z ctx eqx eqy indistxy adl adv dst.
   Abort.
 
+  Context {state state_list_message:base_type}.
+  Context (proj_state : forall eta, interp_type (state_list_message -> state) eta).
+  Context (proj_list_message : forall eta, interp_type (state_list_message -> list_message) eta).
+  Context (list_message_nil : forall eta, interp_type list_message eta).
+  Context (join_state_list_message : forall eta, interp_type (state -> list_message -> state_list_message) eta).
+  Context (app_list_message : forall eta, interp_type (list_message -> list_message -> list_message) eta).
+  Section Interact.
+    Context
+      (start:term state)
+      (step:term (state -> message -> state_list_message)).
+    Fixpoint interact (n:nat) : term (state_list_message) :=
+      match n with
+      | O => const join_state_list_message @ start @ const list_message_nil
+      | S n' =>
+        let s'o' := interact n' in
+        let old_state := const proj_state @ s'o' in
+        let old_outputs := const proj_list_message @ s'o' in
+        let so := step @ old_state @ (Term_adversarial old_outputs) in
+        let new_state := const proj_state @ so in
+        let new_outputs := const proj_list_message @ so in
+        let cumulative_outputs := const app_list_message @ old_outputs @ new_outputs in
+        const join_state_list_message @ new_state @ cumulative_outputs
+      end%term.
+  End Interact.
+
 End Language.
 Arguments type _ : clear implicits.
