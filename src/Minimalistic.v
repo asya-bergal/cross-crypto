@@ -502,6 +502,7 @@ Section Language.
   (* Local Instance subrelation_eq_Comp_eq {A} : subrelation eq (Comp_eq(A:=A)) | 2 := eq_subrelation _. *)
 
   Section Equality.
+    (* TODO: use pointwise equality for functions? *)
     Definition const_eqb t : term (t -> t -> sbool) :=
       @Term_const
         (Type_arrow t (Type_arrow t (Type_base sbool)))
@@ -531,6 +532,14 @@ Section Language.
       eapply negligible_0.
     Qed.
 
+    Global Instance Equivalence_eqwhp {t} : Symmetric (@eqwhp t).
+    Admitted.
+
+    Global Instance Proper_eqwhp_app {dom cod} : Proper (eqwhp ==> eqwhp ==> eqwhp) (@Term_app dom cod).
+    Admitted.
+
+    Global Instance Proper_eqwhp_adversarion: Proper (eqwhp ==> eqwhp) Term_adversarial.
+    Admitted.
   End Equality.
 
   Section LateInterp.
