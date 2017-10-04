@@ -252,6 +252,9 @@ Section Language.
   Section GenerateRandomness. 
     Context (eta:nat).
 
+    Definition genrand : Comp _ := (r <-$ {0,1}^eta; ret (cast_rand eta r)).
+    (* TODO: use [genrand] in the remainder of this section *)
+
     Definition generate_randomness_single i rndC := 
       rnds' <-$ rndC;
         ri <-$ {0,1}^eta;
@@ -495,6 +498,12 @@ Section Language.
        eauto using negligible_0, negligible_plus.
     Qed.
   End Security.
+
+  Lemma interp_term_const {t} e eta a : Comp_eq (interp_term (@Term_const t e) eta a) (ret (e eta)).
+  Proof. cbv -[Comp_eq]; setoid_rewrite Bind_unused; reflexivity. Qed.
+
+  Lemma interp_term_rand i eta a : Comp_eq (interp_term (@Term_random i) eta a) (genrand eta).
+  Admitted.
 
   Definition whp (e:term sbool) := indist e (const strue).
 
