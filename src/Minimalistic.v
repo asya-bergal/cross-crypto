@@ -248,15 +248,13 @@ Section Language.
     constructor.
   Admitted.
 
-  Context (len_rand : forall eta:nat, nat)
-          (cast_rand : forall eta, Bvector (len_rand eta)
-                                   -> interp_type rand eta).
+  Context (cast_rand : forall eta, Bvector eta -> interp_type rand eta).
   Section GenerateRandomness. 
     Context (eta:nat).
 
     Definition generate_randomness_single i rndC := 
       rnds' <-$ rndC;
-        ri <-$ {0,1}^(len_rand eta);
+        ri <-$ {0,1}^eta;
         ret (PositiveMap.add i (cast_rand eta ri) rnds').
 
     Definition generate_randomness idxs
@@ -309,7 +307,7 @@ Section Language.
       PositiveSetProperties.Add x s s' ->
       ~PositiveSet.In x s ->
       Comp_eq (a <-$ generate_randomness s'; f a)
-              (a <-$ {0,1}^len_rand eta;
+              (a <-$ {0,1}^eta;
                  b <-$ generate_randomness s;
                  f (PositiveMap.add x (cast_rand eta a) b)).
     Proof.
@@ -320,7 +318,7 @@ Section Language.
       cbv [generate_randomness_single].
       repeat setoid_rewrite <-Bind_assoc;
       repeat setoid_rewrite Bind_Ret_l;
-      rewrite Bind_comm with (c2 := {0,1}^len_rand _).
+      rewrite Bind_comm with (c2 := {0,1}^_).
       reflexivity.
     Qed.
 
@@ -330,7 +328,7 @@ Section Language.
         Comp_eq
           (t <-$ generate_randomness idxs;
              f (PositiveMap.find i t))
-          (r <-$ { 0 , 1 }^ len_rand eta; f (Some (cast_rand eta r))).
+          (r <-$ { 0 , 1 }^ eta; f (Some (cast_rand eta r))).
     Proof.
       intros.
       apply PositiveSetProperties.Add_remove in H.
@@ -445,7 +443,7 @@ Section Language.
     End GenerateRandomness.
 
 
-  Context (unreachable:forall {i}, Bvector (len_rand i)).
+  Context (unreachable:forall {i}, Bvector i).
   Global Instance EqDec_interp_type : forall t eta, EqDec (interp_type t eta). Admitted. (* TODO: functional extensionality? *)
   Fixpoint interp_term_fixed {t} (e:term t) (eta : nat)
            (adv: interp_type list_message eta -> interp_type message eta)
@@ -546,7 +544,7 @@ Section Language.
       | Term_random i =>
         match PositiveMap.find i fixed_rand with
         | Some r => ret r
-        | _ => r <-$ {0,1}^(len_rand eta); ret (cast_rand eta r)
+        | _ => r <-$ {0,1}^eta; ret (cast_rand eta r)
         end
       | Term_adversarial ctx =>
         ctx <-$ interp_term_late ctx eta adv fixed_rand; ret (adv ctx)
