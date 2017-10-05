@@ -1,3 +1,4 @@
+Require Import Coq.Logic.Eqdep_dec.
 Require Import FCF.FCF.
 Require Import FCF.Asymptotic.
 Require Import FCF.Admissibility.
@@ -450,13 +451,34 @@ Section Language.
         let game eta e := universal_security_game adl adv dst eta e in
         negligible (fun eta => | Pr[game eta a] -  Pr[game eta b] | ).
 
-    Global Instance Equivalence_indist {t} : Equivalence (@indist t) := _.
+    Global Instance Equivalence_indist {t} : Equivalence (@indist t).
     Proof.
       split; cbv [Reflexive Symmetric Transitive indist]; intros;
         [ setoid_rewrite ratDistance_same (* Reflexive *)
         | setoid_rewrite ratDistance_comm (* Symmetric *)
         | setoid_rewrite ratTriangleInequality ]; (* Transitive *)
         eauto using negligible_0, negligible_plus.
+    Qed.
+
+    Global Instance Proper_indist_func {t1 t2} f : Proper (@indist t1 ==> @indist t2) (expr_func f).
+    Proof.
+      cbv [Proper respectful indist universal_security_game interp]; intros.
+      cbn [interp_fixed].
+      
+      specialize (H adl adv
+        (fun t =>
+           match (EqDec_dec _ t1 t) with
+           | left e => eq_rect t1 (fun t => forall eta, _ -> interp_type t _ -> _)
+                              (fun eta rands v => dst t2 eta rands (interp_func f v)) t e
+           | right _ => dst t
+           end)). 
+      cbn [id] in *.
+      destruct (EqDec_dec eqdec_type t1 t1) as [e|] in *; try contradiction; [].
+      rewrite (UIP_dec (EqDec_dec _) e eq_refl) in H; cbn [eq_rect] in H.
+
+      setoid_rewrite <-Bind_assoc; setoid_rewrite Bind_Ret_l.
+      setoid_rewrite <-Bind_assoc in H; setoid_rewrite Bind_Ret_l in H.
+      eapply H.
     Qed.
   End Security.
   Infix "≈" := indist (at level 70).
