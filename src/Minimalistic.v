@@ -497,7 +497,9 @@ Section Language.
        | setoid_rewrite ratTriangleInequality ]; (* Transitive *)
        eauto using negligible_0, negligible_plus.
     Qed.
+
   End Security.
+  Infix "≈" := indist (at level 70).
 
   Lemma interp_term_const {t} e eta a : Comp_eq (interp_term (@Term_const t e) eta a) (ret (e eta)).
   Proof. cbv -[Comp_eq]; setoid_rewrite Bind_unused; reflexivity. Qed.
@@ -505,7 +507,7 @@ Section Language.
   Lemma interp_term_rand i eta a : Comp_eq (interp_term (@Term_random i) eta a) (genrand eta).
   Admitted.
 
-  Definition whp (e:term sbool) := indist e (const strue).
+  Definition whp (e:term sbool) := e ≈ (const strue).
 
   Local Existing Instance eq_subrelation | 5.
   (* Local Instance subrelation_eq_Comp_eq {A} : subrelation eq (Comp_eq(A:=A)) | 2 := eq_subrelation _. *)
@@ -547,7 +549,7 @@ Section Language.
     Global Instance Proper_eqwhp_app {dom cod} : Proper (eqwhp ==> eqwhp ==> eqwhp) (@Term_app dom cod).
     Admitted.
 
-    Global Instance Proper_eqwhp_adversarion: Proper (eqwhp ==> eqwhp) Term_adversarial.
+    Global Instance Proper_eqwhp_adversarial : Proper (eqwhp ==> eqwhp) Term_adversarial.
     Admitted.
   End Equality.
 
@@ -659,7 +661,7 @@ Section Language.
     Qed.
   End LateInterp.
 
-  Lemma indist_rand (x y:positive) : indist (rnd x) (rnd y).
+  Lemma indist_rand x y : rnd x ≈ rnd y.
   Proof.
     cbv [indist universal_security_game]; intros.
     setoid_rewrite <-interp_term_late_correct.
@@ -685,8 +687,8 @@ Section Language.
   Lemma indist_no_shared_randomness: forall {t u} (x: term t) (y: term t) (z: term u) (ctx: term_wh t u),
       PositiveSet.Equal (PositiveSet.inter (randomness_indices_wh ctx) (randomness_indices x)) PositiveSet.empty ->
       PositiveSet.Equal (PositiveSet.inter (randomness_indices_wh ctx) (randomness_indices y)) PositiveSet.empty ->
-      indist y x ->
-      indist (fill ctx y) (fill ctx x).
+      y ≈ x ->
+      fill ctx y ≈ fill ctx x.
   Proof.
     cbv [indist universal_security_game] in *;
       intros t u x y z ctx eqx eqy indistxy adl adv dst.
