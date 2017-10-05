@@ -23,6 +23,24 @@ Lemma negligible_0 : negligible (fun _ => 0).
   { apply negligible_const_num. }
 Qed.
 
+Global Instance Reflexive_negligible_ratDistance :
+  Reflexive (fun f g => negligible (fun eta => | f eta - g eta |)).
+Proof.
+  intros ?; setoid_rewrite ratDistance_same; eapply negligible_0.
+Qed.
+
+Global Instance Symmetric_negligible_ratDistance :
+  Symmetric (fun f g => negligible (fun eta => | f eta - g eta |)).
+Proof.
+  intros ???; setoid_rewrite ratDistance_comm; assumption.
+Qed.
+
+Global Instance Transitive_negligible_ratDistance :
+  Transitive (fun f g => negligible (fun eta => | f eta - g eta |)).
+Proof.
+  intros ?????; setoid_rewrite ratTriangleInequality; eauto using negligible_plus.
+Qed.
+
 Definition image_relation {T} (R:T->T->Prop) {A} (f:A->T) := fun x y => R (f x) (f y).
 Global Instance Equivalence_image_relation {T R} {Equivalence_R:Equivalence R} {A} (f:A->T) :
   Equivalence (image_relation R f).
@@ -61,14 +79,18 @@ Proof.
       intros; subst; (try match goal with H1:_ |- _ => eapply H1 end;reflexivity). }
 Qed.
 
+Global Instance Proper_Ret {A} {R} : Proper (R ==> pointwise_relation _ Comp_eq) (@Ret A).
+Proof.
+  intros eq1 eq2 ? x1 x2.
+  cbv [Comp_eq image_relation pointwise_relation evalDist].
+  destruct (eq1 x1 x2), (eq2 x1 x2); (congruence||reflexivity).
+Qed. 
+
 Global Instance Proper_Bind {A B} : Proper (Comp_eq ==> (pointwise_relation _ Comp_eq) ==> Comp_eq) (@Bind A B).
 Proof.
   intros ?? H ?? G ?. simpl evalDist.
   setoid_rewrite H. setoid_rewrite G. reflexivity.
 Qed.
-
-Lemma eq_impl_negligible : forall A (x y : nat -> Comp A), pointwise_relation _ Comp_eq x y -> forall t, negligible (fun eta : nat => | evalDist (x eta) t - evalDist (y eta) t|).
-Admitted.
 
 Lemma Comp_eq_bool (x y:Comp bool) :
   well_formed_comp x
@@ -152,3 +174,33 @@ Proof.
   intros.
   apply evalDist_commute_eq.
 Qed.
+
+(* TODO(jgross): explain these *)
+Ltac solve_Proper_eqs :=
+  idtac;
+  lazymatch goal with
+  | [ |- Proper _ _ ] => apply @reflexive_proper; solve_Proper_eqs
+  | [ |- Reflexive (_ ==> _)%signature ]
+    => apply @reflexive_eq_dom_reflexive; solve_Proper_eqs
+  | [ |- Reflexive _ ] => try apply eq_Reflexive
+  end.
+Ltac is_evar_or_eq e :=
+  first [ is_evar e
+        | match e with
+          | eq => idtac
+          end ].
+Ltac is_evar_or_eq_or_evar_free e :=
+  first [ is_evar_or_eq e
+        | try (has_evar e; fail 1) ].
+Hint Extern 1 (Proper ?e _) =>
+is_evar_or_eq e; solve_Proper_eqs : typeclass_instances.
+Hint Extern 1 (Proper (?e1 ==> ?e2) _) =>
+is_evar_or_eq e1; is_evar_or_eq_or_evar_free e2; solve_Proper_eqs : typeclass_instances.
+Hint Extern 1 (Proper (?e1 ==> ?e2 ==> ?e3) _) =>
+is_evar_or_eq e1; is_evar_or_eq e2; is_evar_or_eq_or_evar_free e3; solve_Proper_eqs : typeclass_instances.
+Hint Extern 1 (Proper (?e1 ==> ?e2 ==> ?e3 ==> ?e4) _) =>
+is_evar_or_eq e1; is_evar_or_eq e2; is_evar_or_eq e3; is_evar_or_eq_or_evar_free e4; solve_Proper_eqs : typeclass_instances.
+Hint Extern 1 (Proper (?e1 ==> ?e2 ==> ?e3 ==> ?e4 ==> ?e5) _) =>
+is_evar_or_eq e1; is_evar_or_eq e2; is_evar_or_eq e3; is_evar_or_eq e4; is_evar_or_eq_or_evar_free e5; solve_Proper_eqs : typeclass_instances.
+Hint Extern 1 (Proper (?e1 ==> ?e2 ==> ?e3 ==> ?e4 ==> ?e5 ==> ?e6) _) =>
+is_evar_or_eq e1; is_evar_or_eq e2; is_evar_or_eq e3; is_evar_or_eq e4; is_evar_or_eq e5; is_evar_or_eq_or_evar_free e6; solve_Proper_eqs : typeclass_instances.
