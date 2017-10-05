@@ -174,3 +174,33 @@ Proof.
   intros.
   apply evalDist_commute_eq.
 Qed.
+
+(* TODO(jgross): explain these *)
+Ltac solve_Proper_eqs :=
+  idtac;
+  lazymatch goal with
+  | [ |- Proper _ _ ] => apply @reflexive_proper; solve_Proper_eqs
+  | [ |- Reflexive (_ ==> _)%signature ]
+    => apply @reflexive_eq_dom_reflexive; solve_Proper_eqs
+  | [ |- Reflexive _ ] => try apply eq_Reflexive
+  end.
+Ltac is_evar_or_eq e :=
+  first [ is_evar e
+        | match e with
+          | eq => idtac
+          end ].
+Ltac is_evar_or_eq_or_evar_free e :=
+  first [ is_evar_or_eq e
+        | try (has_evar e; fail 1) ].
+Hint Extern 1 (Proper ?e _) =>
+is_evar_or_eq e; solve_Proper_eqs : typeclass_instances.
+Hint Extern 1 (Proper (?e1 ==> ?e2) _) =>
+is_evar_or_eq e1; is_evar_or_eq_or_evar_free e2; solve_Proper_eqs : typeclass_instances.
+Hint Extern 1 (Proper (?e1 ==> ?e2 ==> ?e3) _) =>
+is_evar_or_eq e1; is_evar_or_eq e2; is_evar_or_eq_or_evar_free e3; solve_Proper_eqs : typeclass_instances.
+Hint Extern 1 (Proper (?e1 ==> ?e2 ==> ?e3 ==> ?e4) _) =>
+is_evar_or_eq e1; is_evar_or_eq e2; is_evar_or_eq e3; is_evar_or_eq_or_evar_free e4; solve_Proper_eqs : typeclass_instances.
+Hint Extern 1 (Proper (?e1 ==> ?e2 ==> ?e3 ==> ?e4 ==> ?e5) _) =>
+is_evar_or_eq e1; is_evar_or_eq e2; is_evar_or_eq e3; is_evar_or_eq e4; is_evar_or_eq_or_evar_free e5; solve_Proper_eqs : typeclass_instances.
+Hint Extern 1 (Proper (?e1 ==> ?e2 ==> ?e3 ==> ?e4 ==> ?e5 ==> ?e6) _) =>
+is_evar_or_eq e1; is_evar_or_eq e2; is_evar_or_eq e3; is_evar_or_eq e4; is_evar_or_eq e5; is_evar_or_eq_or_evar_free e6; solve_Proper_eqs : typeclass_instances.
