@@ -55,15 +55,15 @@ is_evar_or_eq e1; is_evar_or_eq e2; is_evar_or_eq e3; is_evar_or_eq e4; is_evar_
 
 Section FMapTODO.
   Lemma PosMap_add_commutes {A} x y (m : PositiveMap.t A) a b :
-  (x <> y \/ a = b) ->
-  PositiveMap.Equal (PositiveMap.add x a (PositiveMap.add y b m))
-                    (PositiveMap.add y b (PositiveMap.add x a m)).
+    (x <> y \/ a = b) ->
+    PositiveMap.Equal (PositiveMap.add x a (PositiveMap.add y b m))
+                      (PositiveMap.add y b (PositiveMap.add x a m)).
   Proof.
     cbv [PositiveMap.Equal]; destruct 1; intros;
       repeat match goal with
-               | _ => rewrite PositiveMapFacts.add_o
-               | |- context [if ?x then _ else _] =>
-                 destruct x; subst; try congruence
+             | _ => rewrite PositiveMapFacts.add_o
+             | |- context [if ?x then _ else _] =>
+               destruct x; subst; try congruence
              end.
   Qed.
 
@@ -225,8 +225,8 @@ Section Language.
                           (ret (PositiveMap.empty _)).
 
     Lemma empty_randomness : 
-        Comp_eq (generate_randomness PositiveSet.empty)
-                (ret (PositiveMap.empty _)).
+      Comp_eq (generate_randomness PositiveSet.empty)
+              (ret (PositiveMap.empty _)).
     Proof.
       intros; cbv [generate_randomness].
       rewrite PositiveSetProperties.fold_empty.
@@ -258,7 +258,7 @@ Section Language.
           do 3 (eapply Proper_Bind; [reflexivity|];
                 cbv [pointwise_relation]; intros).
 
-          (* Line below fails because Ret is not proper over
+    (* Line below fails because Ret is not proper over
           PositiveMap.eq *)
           (* rewrite add_add_eq. *)
           
@@ -278,8 +278,8 @@ Section Language.
            auto using generate_randomness_single_transpose).
       cbv [generate_randomness_single].
       repeat setoid_rewrite <-Bind_assoc;
-      repeat setoid_rewrite Bind_Ret_l;
-      rewrite Bind_comm with (c2 := {0,1}^_).
+        repeat setoid_rewrite Bind_Ret_l;
+        rewrite Bind_comm with (c2 := {0,1}^_).
       reflexivity.
     Qed.
 
@@ -310,10 +310,10 @@ Section Language.
     Lemma Proper_Bind_generate_randomness {A: Set} idxs :
       Proper (
           (fun f g =>
-                 forall m,
-                   (forall i, PositiveMap.In i m <-> PositiveSet.In i idxs) ->
-                   Comp_eq (f m) (g m))
-                ==> Comp_eq)
+             forall m,
+               (forall i, PositiveMap.In i m <-> PositiveSet.In i idxs) ->
+               Comp_eq (f m) (g m))
+            ==> Comp_eq)
              (Bind (A:=A) (generate_randomness idxs)).
     Proof.
       cbv [Proper respectful generate_randomness].
@@ -351,7 +351,7 @@ Section Language.
       cbv [PositiveSet.Equal] in H.
       apply PositiveSetProperties.fold_equal;
         auto using generate_randomness_single_transpose; try exact _.
-     Qed.
+    Qed.
 
     Lemma generate_twice idxs1 :
       forall idxs2 {A} (f:_->Comp A),
@@ -379,8 +379,8 @@ Section Language.
       { intros until 1. intro new_elt; intros.
         rewrite add_generate_randomness with (s'0:=s') by eassumption.
         rewrite add_generate_randomness with
-        (s0:=PositiveSet.union s (PositiveSet.remove new_elt idxs2))
-          (s'0:=PositiveSet.union s' idxs2) (x:=new_elt).
+            (s0:=PositiveSet.union s (PositiveSet.remove new_elt idxs2))
+            (s'0:=PositiveSet.union s' idxs2) (x:=new_elt).
         Focus 2. {
           cbv [PositiveSetProperties.Add]; intros.
           rewrite (union_remove s' idxs2 new_elt).
@@ -401,7 +401,7 @@ Section Language.
           reflexivity. }
     Qed.
 
-    End GenerateRandomness.
+  End GenerateRandomness.
 
   Context (interp_func : forall {t1 t2} (f:func t1 t2) {eta}, interp_type t1 eta -> interp_type t2 eta).
   Context (interp_pair : forall {t1 t2 eta}, interp_type t1 eta -> interp_type t2 eta -> interp_type (tprod t1 t2) eta).
@@ -441,7 +441,7 @@ Section Language.
                (adversary:forall (eta:nat) (rands: PositiveMap.t (interp_type trand eta)), interp_type (tlist tmessage) eta -> interp_type tmessage eta)
                (distinguisher: forall {t} (eta:nat) (rands: PositiveMap.t (interp_type trand eta)), interp_type t eta -> Datatypes.bool)
                (eta:nat) {t:type} (e:expr t) : Comp Datatypes.bool :=
-        evil_rands <-$ generate_randomness eta (evil_rand_indices eta);
+      evil_rands <-$ generate_randomness eta (evil_rand_indices eta);
         out <-$ interp e eta (adversary eta (evil_rands));
         ret (distinguisher eta evil_rands out).
 
@@ -453,10 +453,10 @@ Section Language.
     Global Instance Equivalence_indist {t} : Equivalence (@indist t) := _.
     Proof.
       split; cbv [Reflexive Symmetric Transitive indist]; intros;
-       [ setoid_rewrite ratDistance_same (* Reflexive *)
-       | setoid_rewrite ratDistance_comm (* Symmetric *)
-       | setoid_rewrite ratTriangleInequality ]; (* Transitive *)
-       eauto using negligible_0, negligible_plus.
+        [ setoid_rewrite ratDistance_same (* Reflexive *)
+        | setoid_rewrite ratDistance_comm (* Symmetric *)
+        | setoid_rewrite ratTriangleInequality ]; (* Transitive *)
+        eauto using negligible_0, negligible_plus.
     Qed.
   End Security.
   Infix "≈" := indist (at level 70).
@@ -538,7 +538,7 @@ Section Language.
         Comp_eq (interp_late e eta adv fixed)
                 (rands <-$ generate_randomness eta univ;
                    ret (interp_fixed e eta adv
-                                          (PositiveMapProperties.update rands fixed))).
+                                     (PositiveMapProperties.update rands fixed))).
     Proof.
       induction e; intros;
         simpl interp_late; simpl interp_fixed.
@@ -597,8 +597,8 @@ Section Language.
 
         (* FIXME: this might be false ~ andreser *)
         assert (bind_twice : forall {A B:Set} (x: Comp B) (f : B -> B -> Comp A),
-          Comp_eq (Bind x (fun y => Bind x (f y)))
-                  (Bind x (fun y => f y y))) by admit.
+                   Comp_eq (Bind x (fun y => Bind x (f y)))
+                           (Bind x (fun y => f y y))) by admit.
         repeat setoid_rewrite bind_twice.
         clear bind_twice.
 
