@@ -177,78 +177,36 @@ Section FMapTODO.
 End FMapTODO.
 
 Section Language.
-  Context {base_type : Set}
-          {interp_base_type:base_type->nat->Set}
-          {eqdec_base_type : forall {t eta}, EqDec (interp_base_type t eta)}.
+  Context {type  : Set} {eqdec_type : EqDec type}
+          {interp_type : type -> nat -> Set} {eqdec_interp_type : forall {t eta}, EqDec (interp_type t eta)}
+          {tbool trand tmessage : type} {tlist : type -> type} {tprod : type -> type -> type}.
+  Context {func : type -> type -> Set}.
 
-  Inductive type := Type_base (t:base_type) | Type_arrow (dom:type) (cod:type).
-  Global Coercion Type_base : base_type >-> type.
-  Fixpoint interp_type (t:type) (eta:nat) : Set :=
-    match t with
-    | Type_base t => interp_base_type t eta
-    | Type_arrow dom cod => interp_type dom eta -> interp_type cod eta
-    end.
-  Delimit Scope term_scope with term.
-  Bind Scope term_scope with type.
-  Notation "A -> B" := (Type_arrow A B) : term_scope.
+  Inductive expr : type -> Type :=
+  | expr_const {t} (_:forall eta, interp_type t eta) : expr t
+  | expr_random (idx:positive) : expr trand
+  | expr_adversarial (_:expr (tlist tmessage)) : expr tmessage
+  | expr_func {t1 t2} (_:func t1 t2) (_:expr t1) : expr t2
+  | expr_pair {t1 t2} (_:expr t1) (_:expr t2) : expr (tprod t1 t2).
 
-  Context {sbool message list_message rand : base_type}
-          {strue sfalse:forall eta, interp_type sbool eta}.
-  (* we would need a dependently typed map data structure for dependently typed randomness *)
+  Bind Scope expr_scope with expr.
+  Delimit Scope expr_scope with expr.
+  Notation "A @ B" := (expr_func A B) (at level 99) : expr_scope.
+  Local Open Scope expr_scope.
 
-  (* A term is parametrized by its type, which can either be one of the base_types *)
-  (* listed above, or an arrow type consisting of multiple interpreted base_types. *)
-  Inductive term : type -> Type :=
-  | Term_const {t} (_:forall eta, interp_type t eta) : term t
-  | Term_random (idx:positive) : term rand
-  | Term_adversarial (_:term list_message) : term message
-  | Term_app {dom cod} (_:term (Type_arrow dom cod)) (_:term dom) : term cod.
-
-  (* Term with one or more holes in it *)
-  Inductive term_wh (holetype : type) : type -> Type :=
-  | Term_wh_const {t} (_:forall eta, interp_type t eta) : term_wh holetype t
-  | Term_wh_random (idx:positive) : term_wh holetype rand
-  | Term_wh_adversarial (_:term_wh holetype list_message) : term_wh holetype message
-  | Term_wh_app {dom cod} (_:term_wh holetype (Type_arrow dom cod)) (_:term_wh holetype dom) :
-      term_wh holetype cod
-  | Term_wh_hole : term_wh holetype holetype.
-
-  Bind Scope term_scope with term.
-  Notation "A @ B" := (Term_app A B) (at level 99) : term_scope.
-  Notation "'rnd' n" := (Term_random n) (at level 35) : term_scope.
-  Notation "'const' c" := (Term_const c) (at level 35) : term_scope.
-
-  Notation "A h@ B" := (Term_wh_app A B) (at level 99) : term_scope.
-  Notation "'hrnd' n" := (Term_wh_random n) (at level 35) : term_scope.
-  Notation "'hconst' c" := (Term_wh_const c) (at level 35) : term_scope.
-  Notation "'hole'" := (Term_wh_hole) (at level 35) : term_scope.
-
-
-  Fixpoint fill {holetype t} (twh : term_wh holetype t) (filler : term holetype) : term t :=
-    match twh with
-    | Term_wh_const _ c => Term_const c
-    | Term_wh_random _ r => Term_random r
-    | Term_wh_adversarial _ ctx => Term_adversarial (fill ctx filler)
-    | Term_wh_app _ f x => Term_app (fill f filler) (fill x filler)
-    | Term_wh_hole _ => filler
-    end.
-
-  Fixpoint randomness_indices {t:type} (e:term t) : PositiveSet.t :=
+  Fixpoint randomness_indices {t:type} (e:expr t) : PositiveSet.t :=
     match e with
-    | Term_random idx => PositiveSet.singleton idx
-    | Term_app f x => PositiveSet.union (randomness_indices f) (randomness_indices x)
-    | Term_adversarial x => randomness_indices x
-    | _ => PositiveSet.empty
+    | expr_const _ => PositiveSet.empty
+    | expr_random idx => PositiveSet.singleton idx
+    | expr_adversarial x => randomness_indices x
+    | expr_func f x => randomness_indices x
+    | expr_pair a b => PositiveSet.union (randomness_indices a) (randomness_indices b)
     end.
-  Scheme Equality for PositiveMap.tree.
-  Global Instance randomness_map_eq_dec {eta} : EqDec (PositiveMap.t (interp_type rand eta)).
-  Proof.
-    Print EqDec.
-    eapply Build_EqDec.
-    constructor.
-  Admitted.
 
-  Context (cast_rand : forall eta, Bvector eta -> interp_type rand eta).
+  (* TODO: use a map with a canonical representation *)
+  Global Instance randomness_map_eq_dec {eta} : EqDec (PositiveMap.t (interp_type trand eta)). Admitted.
+
+  Context (cast_rand : forall eta, Bvector eta -> interp_type trand eta).
   Section GenerateRandomness. 
     Context (eta:nat).
 
@@ -261,7 +219,7 @@ Section Language.
         ret (PositiveMap.add i (cast_rand eta ri) rnds').
 
     Definition generate_randomness idxs
-      : Comp (PositiveMap.t (interp_type rand eta))
+      : Comp (PositiveMap.t (interp_type trand eta))
       := PositiveSet.fold generate_randomness_single
                           idxs
                           (ret (PositiveMap.empty _)).
@@ -445,46 +403,49 @@ Section Language.
 
     End GenerateRandomness.
 
+  Context (interp_func : forall {t1 t2} (f:func t1 t2) {eta}, interp_type t1 eta -> interp_type t2 eta).
+  Context (interp_pair : forall {t1 t2 eta}, interp_type t1 eta -> interp_type t2 eta -> interp_type (tprod t1 t2) eta).
+  Arguments interp_func {_ _} _ {_}.
+  Arguments interp_pair {_ _ _}.
 
-  Context (unreachable:forall {i}, Bvector i).
-  Global Instance EqDec_interp_type : forall t eta, EqDec (interp_type t eta). Admitted. (* TODO: functional extensionality? *)
-  Fixpoint interp_term_fixed {t} (e:term t) (eta : nat)
-           (adv: interp_type list_message eta -> interp_type message eta)
-           (rands: PositiveMap.t (interp_type rand eta))
+  Fixpoint interp_fixed {t} (e:expr t) (eta : nat)
+           (adv: interp_type (tlist tmessage) eta -> interp_type tmessage eta)
+           (rands: PositiveMap.t (interp_type trand eta))
     : interp_type t eta :=
     match e with
-    | Term_const c => c eta
-    | Term_random i => match PositiveMap.find i rands with Some r => r | _ => cast_rand eta (unreachable _) end
-    | Term_adversarial ctx => adv (interp_term_fixed ctx eta adv rands)
-    | Term_app f x => (interp_term_fixed f eta adv rands) (interp_term_fixed x eta adv rands)
+    | expr_const c => c eta
+    | expr_random i => match PositiveMap.find i rands with Some r => r | _ => cast_rand eta (Bvector_exists _) end
+    | expr_adversarial inputs => adv (interp_fixed inputs eta adv rands)
+    | expr_func f inputs => interp_func f (interp_fixed inputs eta adv rands)
+    | expr_pair a b => interp_pair (interp_fixed a eta adv rands) (interp_fixed b eta adv rands)
     end.
-  Definition interp_term {t} (e:term t) (eta:nat)
-             (adv: interp_type list_message eta -> interp_type message eta)
+  Definition interp {t} (e:expr t) (eta:nat)
+             (adv: interp_type (tlist tmessage) eta -> interp_type tmessage eta)
     : Comp (interp_type t eta)
-    := rands <-$ generate_randomness eta (randomness_indices e); ret (interp_term_fixed e eta adv rands).
+    := rands <-$ generate_randomness eta (randomness_indices e); ret (interp_fixed e eta adv rands).
 
-  Global Instance Proper_interp_term_fixed {t} (e:term t) eta adv :
-    Proper (PositiveMap.Equal ==> Logic.eq) (interp_term_fixed e eta adv).
+  Global Instance Proper_interp_term_fixed {t} (e:expr t) eta adv :
+    Proper (PositiveMap.Equal ==> Logic.eq) (interp_fixed e eta adv).
   Proof.
     cbv [Proper respectful]; induction e; intros; simpl; try reflexivity.
     { cbv [PositiveMap.Equal] in *. rewrite H. reflexivity. }
+    { erewrite IHe; eauto. }
     { erewrite IHe; eauto. }
     { erewrite IHe1, IHe2; eauto. }
   Qed.
 
   Section Security.
     (* the adversary is split into three parts for no particular reason. It first decides how much randomness it will need, then interacts with the protocol (repeated calls to [adverary] with all messages up to now as input), and then tries to claim victory ([distinguisher]). There is no explicit sharing of state between these procedures, but all of them get the same random inputs in the security game. The handling of state is a major difference between FCF [OracleComp] and this framework *)
-(* TODO: Change adl to be function that goes from eta -> keys of randomness we need, change this definitoin approrpiately *)
     Definition universal_security_game
                (evil_rand_indices: forall eta:nat, PositiveSet.t)
-               (adversary:forall (eta:nat) (rands: PositiveMap.t (interp_type rand eta)), interp_type list_message eta -> interp_type message eta)
-               (distinguisher: forall {t} (eta:nat) (rands: PositiveMap.t (interp_type rand eta)), interp_type t eta -> Datatypes.bool)
-               (eta:nat) {t:type} (e:term t) : Comp Datatypes.bool :=
+               (adversary:forall (eta:nat) (rands: PositiveMap.t (interp_type trand eta)), interp_type (tlist tmessage) eta -> interp_type tmessage eta)
+               (distinguisher: forall {t} (eta:nat) (rands: PositiveMap.t (interp_type trand eta)), interp_type t eta -> Datatypes.bool)
+               (eta:nat) {t:type} (e:expr t) : Comp Datatypes.bool :=
         evil_rands <-$ generate_randomness eta (evil_rand_indices eta);
-        out <-$ interp_term e eta (adversary eta (evil_rands));
+        out <-$ interp e eta (adversary eta (evil_rands));
         ret (distinguisher eta evil_rands out).
 
-    Definition indist {t:type} (a b:term t) : Prop :=  forall adl adv dst,
+    Definition indist {t:type} (a b:expr t) : Prop :=  forall adl adv dst,
         (* TODO: insert bounds on coputational complexity of [adv] and [dst] here *)
         let game eta e := universal_security_game adl adv dst eta e in
         negligible (fun eta => | Pr[game eta a] -  Pr[game eta b] | ).
@@ -497,45 +458,39 @@ Section Language.
        | setoid_rewrite ratTriangleInequality ]; (* Transitive *)
        eauto using negligible_0, negligible_plus.
     Qed.
-
   End Security.
   Infix "≈" := indist (at level 70).
 
-  Lemma interp_term_const {t} e eta a : Comp_eq (interp_term (@Term_const t e) eta a) (ret (e eta)).
+  Lemma interp_term_const {t} e eta a : Comp_eq (interp (@expr_const t e) eta a) (ret (e eta)).
   Proof. cbv -[Comp_eq]; setoid_rewrite Bind_unused; reflexivity. Qed.
 
-  Lemma interp_term_rand i eta a : Comp_eq (interp_term (@Term_random i) eta a) (genrand eta).
+  Lemma interp_term_rand i eta a : Comp_eq (interp (@expr_random i) eta a) (genrand eta).
   Admitted.
 
-  Definition whp (e:term sbool) := e ≈ (const strue).
+  Context (vtrue vfalse : forall eta, interp_type tbool eta).
+
+  Definition whp (e:expr tbool) := e ≈ (expr_const vtrue).
 
   Local Existing Instance eq_subrelation | 5.
   (* Local Instance subrelation_eq_Comp_eq {A} : subrelation eq (Comp_eq(A:=A)) | 2 := eq_subrelation _. *)
 
+  Context (feqb : forall t, func (tprod t t) tbool).
+  Arguments feqb {_}.
+  Context (interp_eqb_correct : forall t eta (v1 v2:interp_type t eta),
+              interp_func feqb (interp_pair v1 v2) = vtrue eta <-> v1 = v2).
+
   Section Equality.
-    (* TODO: use pointwise equality for functions? *)
-    Definition const_eqb t : term (t -> t -> sbool) :=
-      @Term_const
-        (Type_arrow t (Type_arrow t (Type_base sbool)))
-        (fun eta x1 x2 => if eqb x1 x2 then strue eta else sfalse eta).
-    Definition eqwhp {t:type} (e1 e2:term t) : Prop := whp (const_eqb t @ e1 @ e2)%term.
+    Definition eqwhp {t} (e1 e2:expr t) : Prop := whp (expr_func feqb (expr_pair e1 e2)).
 
     Global Instance Reflexive_eqwhp {t} : Reflexive (@eqwhp t).
     Proof.
-      cbv [Reflexive indist universal_security_game eqwhp whp interp_term]; intros.
-      cbn [interp_term_fixed const_eqb].
-      (* TODO:debug setoid_rewrite here:
-      Existing Instance eq_Reflexive | 0.
-      Existing Instance eq_equivalence | 0.
-      Local Opaque negligible.
-      Local Opaque eqRat.
-      Set Typeclasses Debug.
-      pose proof Proper_negligible.
-      Fail timeout 1 setoid_rewrite (eqb_refl _ (interp_term_fixed _ _ (adv _ _) _)). *)
-      eapply Proper_negligible.
+      cbv [Reflexive indist universal_security_game eqwhp whp interp]; intros.
+      cbn [interp_fixed].
+      (* TODO: report inlined setoid rewrite *)
+      eapply Proper_negligible. 
       {
         intro eta.
-        setoid_rewrite (eqb_refl _ (interp_term_fixed _ _ (adv _ _) _)).
+        setoid_rewrite (proj2 (interp_eqb_correct t eta (interp_fixed x eta (adv eta _) _) _) eq_refl).
         setoid_rewrite Bind_unused.
         eapply reflexivity.
       }
@@ -546,45 +501,47 @@ Section Language.
     Global Instance Equivalence_eqwhp {t} : Symmetric (@eqwhp t).
     Admitted.
 
-    Global Instance Proper_eqwhp_app {dom cod} : Proper (eqwhp ==> eqwhp ==> eqwhp) (@Term_app dom cod).
+    Global Instance Proper_eqwhp_pair {t1 t2} : Proper (eqwhp ==> eqwhp ==> eqwhp) (@expr_pair t1 t2).
     Admitted.
 
-    Global Instance Proper_eqwhp_adversarial : Proper (eqwhp ==> eqwhp) Term_adversarial.
+    Global Instance Proper_eqwhp_adversarial : Proper (eqwhp ==> eqwhp) expr_adversarial.
     Admitted.
   End Equality.
 
   Section LateInterp.
-    Fixpoint interp_term_late
-             {t} (e:term t) (eta : nat)
-             (adv: interp_type list_message eta -> interp_type message eta)
-             (fixed_rand: PositiveMap.t (interp_type rand eta))
+    Fixpoint interp_late
+             {t} (e:expr t) (eta : nat)
+             (adv: interp_type (tlist tmessage) eta -> interp_type tmessage eta)
+             (fixed_rand: PositiveMap.t (interp_type trand eta))
     : Comp (interp_type t eta) :=
       match e with
-      | Term_const c => ret (c eta)
-      | Term_random i =>
+      | expr_const c => ret (c eta)
+      | expr_random i =>
         match PositiveMap.find i fixed_rand with
         | Some r => ret r
         | _ => r <-$ {0,1}^eta; ret (cast_rand eta r)
         end
-      | Term_adversarial ctx =>
-        ctx <-$ interp_term_late ctx eta adv fixed_rand; ret (adv ctx)
-      | Term_app f x =>
-        common_rand <-$ generate_randomness eta (PositiveSet.inter (randomness_indices x) (randomness_indices f));
+      | expr_adversarial ctx =>
+        ctx <-$ interp_late ctx eta adv fixed_rand; ret (adv ctx)
+      | expr_func f x => 
+        x <-$ interp_late x eta adv fixed_rand; ret (interp_func f x)
+      | expr_pair a b =>
+        common_rand <-$ generate_randomness eta (PositiveSet.inter (randomness_indices b) (randomness_indices a));
           let rands := PositiveMapProperties.update common_rand fixed_rand in
-          x <-$ interp_term_late x eta adv rands;
-            f <-$ interp_term_late f eta adv rands;
-            ret (f x)
+          b <-$ interp_late b eta adv rands;
+            a <-$ interp_late a eta adv rands;
+            ret (interp_pair a b)
       end.
 
-    Lemma interp_term_late_correct' {t} (e:term t) eta adv :
+    Lemma interp_late_correct' {t} (e:expr t) eta adv :
       forall univ (H:PositiveSet.Subset (randomness_indices e) univ) fixed,
-        Comp_eq (interp_term_late e eta adv fixed)
+        Comp_eq (interp_late e eta adv fixed)
                 (rands <-$ generate_randomness eta univ;
-                   ret (interp_term_fixed e eta adv
+                   ret (interp_fixed e eta adv
                                           (PositiveMapProperties.update rands fixed))).
     Proof.
       induction e; intros;
-        simpl interp_term_late; simpl interp_term_fixed.
+        simpl interp_late; simpl interp_fixed.
       { rewrite Bind_unused. reflexivity. }
       {
         simpl randomness_indices in *.
@@ -609,7 +566,7 @@ Section Language.
               by (apply PositiveMapProperties.F.not_find_in_iff; congruence).
             eapply reflexivity. } Unfocus.
 
-          remember (fun m => ret (match m with | Some r => r | None => cast_rand eta (unreachable eta) end)) as G.
+          remember (fun m => ret (match m with | Some r => r | None => cast_rand eta (Bvector_exists eta) end)) as G.
           transitivity (Bind (generate_randomness eta univ)
                              (fun t => G (PositiveMap.find idx t)));
             [|subst G; reflexivity].
@@ -618,6 +575,11 @@ Section Language.
           cbv [PositiveSet.Subset] in H.
           apply H; apply PositiveSet.singleton_spec; reflexivity.
       } }
+      { simpl randomness_indices in *.
+        rewrite IHe by eassumption.
+        repeat setoid_rewrite <-Bind_assoc.
+        repeat setoid_rewrite Bind_Ret_l.
+        reflexivity. }
       { simpl randomness_indices in *.
         rewrite IHe by eassumption.
         repeat setoid_rewrite <-Bind_assoc.
@@ -652,72 +614,29 @@ Section Language.
             reflexivity. } }
     Admitted.
     
-    Lemma interp_term_late_correct {t} (e:term t) eta adv:
+    Lemma interp_late_correct {t} (e:expr t) eta adv:
       Comp_eq
-        (interp_term_late e eta adv (PositiveMap.empty _))
-        (interp_term e eta adv).
+        (interp_late e eta adv (PositiveMap.empty _))
+        (interp e eta adv).
     Proof.
-      rewrite interp_term_late_correct'; cbv [interp_term]; reflexivity.
+      rewrite interp_late_correct'; cbv [interp]; reflexivity.
     Qed.
   End LateInterp.
 
-  Lemma indist_rand x y : rnd x ≈ rnd y.
+  Lemma indist_rand x y : expr_random x ≈ expr_random y.
   Proof.
     cbv [indist universal_security_game]; intros.
-    setoid_rewrite <-interp_term_late_correct.
-    cbv [interp_term_late].
+    setoid_rewrite <-interp_late_correct.
+    cbv [interp_late].
     setoid_rewrite PositiveMap.gempty.
     setoid_rewrite ratDistance_same.
     trivial using negligible_0.
   Qed.
 
-  Fixpoint randomness_indices_wh {holetype t} (twh: term_wh holetype t) : PositiveSet.t :=
-    match twh with
-    | Term_wh_random _ idx => PositiveSet.singleton idx
-    | Term_wh_app _ f x => PositiveSet.union (randomness_indices_wh f) (randomness_indices_wh x)
-    | Term_wh_adversarial _ x => randomness_indices_wh x
-    | _ => PositiveSet.empty
-    end.
-
-  (* One term is fresh in another if they don't share randomness. *)
-  Definition fresh {T} {U} (x : term T) (y : term U) :=
+  Definition independent {T} {U} (x : expr T) (y : expr U) :=
     PositiveSet.eq (PositiveSet.inter (randomness_indices x) (randomness_indices y))
                    PositiveSet.empty.
 
-  Lemma indist_no_shared_randomness: forall {t u} (x: term t) (y: term t) (z: term u) (ctx: term_wh t u),
-      PositiveSet.Equal (PositiveSet.inter (randomness_indices_wh ctx) (randomness_indices x)) PositiveSet.empty ->
-      PositiveSet.Equal (PositiveSet.inter (randomness_indices_wh ctx) (randomness_indices y)) PositiveSet.empty ->
-      y ≈ x ->
-      fill ctx y ≈ fill ctx x.
-  Proof.
-    cbv [indist universal_security_game] in *;
-      intros t u x y z ctx eqx eqy indistxy adl adv dst.
-  Abort.
-
-  Context {state state_list_message:base_type}.
-  Context (proj_state : forall eta, interp_type (state_list_message -> state) eta).
-  Context (proj_list_message : forall eta, interp_type (state_list_message -> list_message) eta).
-  Context (list_message_nil : forall eta, interp_type list_message eta).
-  Context (join_state_list_message : forall eta, interp_type (state -> list_message -> state_list_message) eta).
-  Context (app_list_message : forall eta, interp_type (list_message -> list_message -> list_message) eta).
-  Section Interact.
-    Context
-      (start:term state)
-      (step:term (state -> message -> state_list_message)).
-    Fixpoint interact (n:nat) : term (state_list_message) :=
-      match n with
-      | O => const join_state_list_message @ start @ const list_message_nil
-      | S n' =>
-        let s'o' := interact n' in
-        let old_state := const proj_state @ s'o' in
-        let old_outputs := const proj_list_message @ s'o' in
-        let so := step @ old_state @ (Term_adversarial old_outputs) in
-        let new_state := const proj_state @ so in
-        let new_outputs := const proj_list_message @ so in
-        let cumulative_outputs := const app_list_message @ old_outputs @ new_outputs in
-        const join_state_list_message @ new_state @ cumulative_outputs
-      end%term.
-  End Interact.
+  (* TODO: do we need explicit substitution to define [interact]? *)
 
 End Language.
-Arguments type _ : clear implicits.
