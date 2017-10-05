@@ -467,7 +467,10 @@ Section Language.
   Lemma interp_term_rand i eta a : Comp_eq (interp (@expr_random i) eta a) (genrand eta).
   Admitted.
 
-  Context (vtrue vfalse : forall eta, interp_type tbool eta).
+  Context (vtrue vfalse : forall eta, interp_type tbool eta)
+          (inspect_vbool : forall eta, interp_type tbool eta -> bool)
+          (case_tbool : forall eta (b:interp_type tbool eta), b = if inspect_vbool eta b then vtrue eta else vfalse eta).
+  Arguments inspect_vbool {eta}.
 
   Definition whp (e:expr tbool) := e ≈ (expr_const vtrue).
 
@@ -476,8 +479,8 @@ Section Language.
 
   Context (feqb : forall t, func (tprod t t) tbool).
   Arguments feqb {_}.
-  Context (interp_eqb_correct : forall t eta (v1 v2:interp_type t eta),
-              interp_func feqb (interp_pair v1 v2) = vtrue eta <-> v1 = v2).
+  Context (interp_feqb : forall t eta (v1 v2:interp_type t eta),
+              interp_func feqb (interp_pair v1 v2) = if eqb v1 v2 then vtrue eta else vfalse eta).
 
   Section Equality.
     Definition eqwhp {t} (e1 e2:expr t) : Prop := whp (expr_func feqb (expr_pair e1 e2)).
@@ -490,7 +493,8 @@ Section Language.
       eapply Proper_negligible. 
       {
         intro eta.
-        setoid_rewrite (proj2 (interp_eqb_correct t eta (interp_fixed x eta (adv eta _) _) _) eq_refl).
+        setoid_rewrite interp_feqb.
+        setoid_rewrite eqb_refl.
         setoid_rewrite Bind_unused.
         eapply reflexivity.
       }
@@ -638,5 +642,28 @@ Section Language.
                    PositiveSet.empty.
 
   (* TODO: do we need explicit substitution to define [interact]? *)
+
+  Context (ite : forall t, func (tprod tbool (tprod t t)) t).
+  Arguments ite {_}.
+  Context (interp_ite : forall t eta b (v1 v2:interp_type t eta), interp_func ite (interp_pair b (interp_pair v1 v2)) = if inspect_vbool b then v1 else v2).
+  Arguments interp_ite {_ _}.
+
+  Lemma if_same b t (e:expr t) : eqwhp (expr_func ite (expr_pair b (expr_pair e e))) e.
+  Proof.
+    cbv [eqwhp whp indist universal_security_game interp]; intros.
+    cbn [interp_fixed].
+    eapply Proper_negligible; [intro eta|].
+    {
+      setoid_rewrite interp_feqb.
+      setoid_rewrite interp_ite.
+      assert (if_same : forall (x:bool) {T} (Y:T), (if x then Y else Y) = Y) by (destruct x; reflexivity).
+      setoid_rewrite if_same at 1.
+      setoid_rewrite eqb_refl.
+      setoid_rewrite Bind_unused.
+      eapply reflexivity.
+    }
+    setoid_rewrite ratDistance_same.
+    eapply negligible_0.
+  Qed.
 
 End Language.
