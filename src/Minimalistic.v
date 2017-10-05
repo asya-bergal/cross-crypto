@@ -502,8 +502,28 @@ Section Language.
       eapply negligible_0.
     Qed.
 
-    Global Instance Equivalence_eqwhp {t} : Symmetric (@eqwhp t).
-    Admitted.
+    Global Instance Symmetric_eqwhp {t} : Symmetric (@eqwhp t).
+    Proof.
+      cbv [Symmetric indist universal_security_game eqwhp whp interp]; intros.
+      cbn [interp_fixed] in *.
+      (* TODO: report inlined setoid rewrite *)
+      eapply Proper_negligible. 
+      {
+        intro eta.
+
+        setoid_rewrite interp_feqb.
+        setoid_rewrite eqb_symm.
+        setoid_rewrite <-interp_feqb.
+
+        cbn [randomness_indices].
+        setoid_rewrite PositiveSetProperties.union_sym.
+        
+        eapply reflexivity.
+      }
+      eapply H.
+    Qed.
+
+    Global Instance Transitive_eqwhp {t} : Transitive (@eqwhp t). Admitted.
 
     Global Instance Proper_eqwhp_pair {t1 t2} : Proper (eqwhp ==> eqwhp ==> eqwhp) (@expr_pair t1 t2).
     Admitted.
