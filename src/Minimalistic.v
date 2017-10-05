@@ -666,4 +666,41 @@ Section Language.
     eapply negligible_0.
   Qed.
 
+  Context (inspect_vtrue : forall eta, inspect_vbool (vtrue eta) = true).
+  Context (inspect_vfalse : forall eta, inspect_vbool (vfalse eta) = false).
+
+  Lemma if_true t (e1 e2:expr t) : eqwhp (expr_func ite (expr_pair (expr_const vtrue) (expr_pair e1 e2))) e1.
+  Proof.
+    cbv [eqwhp whp indist universal_security_game interp]; intros.
+    cbn [interp_fixed].
+    eapply Proper_negligible; [intro eta|].
+    {
+      setoid_rewrite interp_ite.
+      setoid_rewrite inspect_vtrue.
+      setoid_rewrite interp_feqb.
+      setoid_rewrite eqb_refl.
+      setoid_rewrite Bind_unused.
+      eapply reflexivity.
+    }
+    setoid_rewrite ratDistance_same.
+    eapply negligible_0.
+  Qed.
+
+  Lemma if_false t (e1 e2:expr t) : eqwhp (expr_func ite (expr_pair (expr_const vfalse) (expr_pair e1 e2))) e2.
+  Proof.
+    cbv [eqwhp whp indist universal_security_game interp]; intros.
+    cbn [interp_fixed].
+    eapply Proper_negligible; [intro eta|].
+    {
+      setoid_rewrite interp_ite.
+      setoid_rewrite inspect_vfalse.
+      setoid_rewrite interp_feqb.
+      setoid_rewrite eqb_refl.
+      setoid_rewrite Bind_unused.
+      eapply reflexivity.
+    }
+    setoid_rewrite ratDistance_same.
+    eapply negligible_0.
+  Qed.
+
 End Language.
